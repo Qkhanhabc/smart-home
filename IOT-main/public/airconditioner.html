@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Điều khiển điều hòa</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .ac-page { min-height: calc(100vh - 40px); }
+    .ac-card { border: 0; border-radius: 16px; box-shadow: 0 5px 18px rgba(28, 49, 82, .08); }
+    .ac-state-icon { width: 62px; height: 62px; display: grid; place-items: center; border-radius: 18px; background: #eaf4ff; color: #1676d2; }
+    .ac-state-icon.on { background: #e2f7ee; color: #16834e; }
+    .temp-value { min-width: 4.5rem; text-align: center; font-size: 1.6rem; font-weight: 700; }
+    .temp-row { display: flex; align-items: center; justify-content: center; gap: 1rem; }
+    .temp-row button { width: 42px; height: 42px; border-radius: 50%; }
+    .raw-slot-list { max-height: 260px; overflow: auto; }
+    .status-line { min-height: 1.5rem; }
+  </style>
+</head>
+<body>
+  <div class="sidebar bg-dark text-white">
+    <div class="logo mb-4"><i class="fa-solid fa-gauge-high me-2"></i> Smart Home</div>
+    <a href="index.html"><i class="fa-solid fa-tachometer-alt me-2"></i> Dashboard</a>
+    <a href="airconditioner.html" class="active"><i class="fa-solid fa-snowflake me-2"></i> Điều hòa</a>
+    <a href="automation.html"><i class="fa-solid fa-wand-magic-sparkles me-2"></i> Tự động hóa</a>
+    <a href="alerts.html"><i class="fa-solid fa-envelope me-2"></i> Cảnh báo email</a>
+    <a href="datasensor.html"><i class="fa-solid fa-database me-2"></i> Data Sensor</a>
+    <a href="history.html"><i class="fa-solid fa-history me-2"></i> History</a>
+    <a href="stats.html"><i class="fa-solid fa-chart-pie me-2"></i> Thống kê</a>
+    <a href="profile.html"><i class="fa-solid fa-microchip me-2"></i> Thông tin hệ thống</a>
+  </div>
+
+  <main class="main-content p-3 ac-page">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div><h1 class="h2 mb-1">Điều khiển điều hòa</h1><div class="text-secondary">Trạng thái và lệnh đi qua MQTT</div></div>
+      <span id="connection-badge" class="badge text-bg-secondary">Đang kiểm tra kết nối</span>
+    </div>
+    <div id="feedback" class="alert alert-info d-none status-line" role="status"></div>
+
+    <div class="row g-3">
+      <div class="col-xl-5">
+        <section class="card ac-card h-100">
+          <div class="card-body p-4">
+            <div class="d-flex align-items-center gap-3 mb-4">
+              <div id="ac-icon" class="ac-state-icon"><i class="fa-solid fa-snowflake fa-2x"></i></div>
+              <div class="flex-grow-1"><h2 class="h5 mb-1">Trạng thái hiện tại</h2><div id="power-state" class="text-secondary">Chưa có dữ liệu</div></div>
+              <span id="control-badge" class="badge text-bg-secondary">Chưa ghép nối</span>
+            </div>
+            <dl class="row mb-0">
+              <dt class="col-5">Chế độ</dt><dd class="col-7" id="current-mode">—</dd>
+              <dt class="col-5">Nhiệt độ đặt</dt><dd class="col-7" id="current-temp">—</dd>
+              <dt class="col-5">Tốc độ quạt</dt><dd class="col-7" id="current-fan">—</dd>
+              <dt class="col-5">Giao thức</dt><dd class="col-7" id="current-vendor">—</dd>
+            </dl>
+            <hr>
+            <button id="pair-button" class="btn btn-outline-primary w-100"><i class="fa-solid fa-link me-2"></i>Ghép nối remote</button>
+            <p class="small text-secondary mt-2 mb-0">Khi bắt đầu, bấm lần lượt Power ON, Temp Up, Temp Down, Power OFF trên remote hướng vào mắt thu IR.</p>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-xl-7">
+        <section id="semantic-panel" class="card ac-card h-100 d-none">
+          <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h2 class="h5 mb-0">Điều khiển theo trạng thái</h2><span class="badge text-bg-success">Semantic</span>
+            </div>
+            <div class="d-flex gap-2 mb-4">
+              <button id="power-on" class="btn btn-success flex-fill"><i class="fa-solid fa-power-off me-2"></i>Bật</button>
+              <button id="power-off" class="btn btn-outline-secondary flex-fill"><i class="fa-solid fa-power-off me-2"></i>Tắt</button>
+            </div>
+            <div class="mb-3">
+              <label for="mode-select" class="form-label">Chế độ</label>
+              <select id="mode-select" class="form-select">
+                <option value="auto">Auto</option><option value="cool">Cool</option><option value="dry">Dry</option><option value="fan">Fan</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label d-block text-center">Nhiệt độ đặt</label>
+              <div class="temp-row"><button id="temp-down" class="btn btn-outline-primary" aria-label="Giảm nhiệt độ"><i class="fa-solid fa-minus"></i></button><span id="temp-value" class="temp-value">25 °C</span><button id="temp-up" class="btn btn-outline-primary" aria-label="Tăng nhiệt độ"><i class="fa-solid fa-plus"></i></button></div>
+              <input id="temp-range" class="form-range mt-2" type="range" min="16" max="30" step="1" value="25">
+            </div>
+            <div class="mb-4">
+              <label for="fan-select" class="form-label">Tốc độ quạt điều hòa</label>
+              <select id="fan-select" class="form-select"><option value="auto">Auto</option><option value="low">Thấp</option><option value="medium">Trung bình</option><option value="high">Cao</option></select>
+            </div>
+            <button id="apply-climate" class="btn btn-primary w-100"><i class="fa-solid fa-paper-plane me-2"></i>Gửi cài đặt</button>
+          </div>
+        </section>
+
+        <section id="raw-panel" class="card ac-card h-100 d-none">
+          <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h5 mb-0">Học và phát tín hiệu raw</h2><span class="badge text-bg-warning">Raw fallback</span></div>
+            <p class="text-secondary">Mỗi slot lưu một khung remote. Đặt tên để nhận biết trạng thái, ví dụ <code>cool_26</code>, rồi bấm đúng nút đó trên remote khi trang báo đang chờ.</p>
+            <div class="input-group mb-2">
+              <input id="slot-name" class="form-control" maxlength="16" placeholder="Tên slot, tối đa 16 ký tự">
+              <button id="learn-slot" class="btn btn-outline-primary"><i class="fa-solid fa-graduation-cap me-1"></i>Học nút</button>
+            </div>
+            <div class="small text-secondary mb-3">Chỉ dùng chữ, số, _ hoặc -. Ví dụ: cool_26, dry_24, fan_hi.</div>
+            <div class="d-flex gap-2 mb-2">
+              <select id="raw-slot-select" class="form-select"><option value="">Chọn slot đã học</option></select>
+              <button id="send-slot" class="btn btn-primary text-nowrap"><i class="fa-solid fa-paper-plane me-1"></i>Phát</button>
+            </div>
+            <div id="raw-slot-list" class="raw-slot-list list-group mt-3"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let acState = null;
+    let deviceOnline = false;
+    const modeLabels = { auto: 'Auto', cool: 'Cool', dry: 'Dry', fan: 'Fan' };
+    const fanLabels = { auto: 'Auto', low: 'Thấp', medium: 'Trung bình', high: 'Cao' };
+
+    function showFeedback(message, kind = 'info') {
+      const box = document.getElementById('feedback');
+      box.textContent = message;
+      box.className = `alert alert-${kind} status-line`;
+    }
+    function setTemp(value) {
+      const temp = Math.max(16, Math.min(30, Number(value) || 25));
+      document.getElementById('temp-range').value = temp;
+      document.getElementById('temp-value').textContent = `${temp} °C`;
+    }
+    function renderState() {
+      const state = acState || {};
+      const onlineBadge = document.getElementById('connection-badge');
+      onlineBadge.textContent = deviceOnline ? 'ESP32 online' : 'ESP32 offline';
+      onlineBadge.className = `badge ${deviceOnline ? 'text-bg-success' : 'text-bg-secondary'}`;
+      const control = state.control || 'none';
+      const controlBadge = document.getElementById('control-badge');
+      const isOn = state.power === true || state.power === 1 || state.power === '1';
+      document.getElementById('power-state').textContent = state.power === undefined ? 'Chưa có trạng thái' : (isOn ? 'Đang bật' : 'Đang tắt');
+      document.getElementById('ac-icon').classList.toggle('on', isOn);
+      document.getElementById('current-mode').textContent = modeLabels[state.mode] || '—';
+      document.getElementById('current-temp').textContent = state.temp === undefined ? '—' : `${state.temp} °C`;
+      document.getElementById('current-fan').textContent = fanLabels[state.fan] || '—';
+      document.getElementById('current-vendor').textContent = state.vendor || '—';
+      controlBadge.textContent = control === 'semantic' ? 'Semantic' : control === 'raw' ? 'Raw fallback' : 'Chưa ghép nối';
+      controlBadge.className = `badge ${control === 'semantic' ? 'text-bg-success' : control === 'raw' ? 'text-bg-warning' : 'text-bg-secondary'}`;
+      document.getElementById('semantic-panel').classList.toggle('d-none', control !== 'semantic');
+      document.getElementById('raw-panel').classList.toggle('d-none', control !== 'raw');
+      document.getElementById('pair-button').disabled = !deviceOnline;
+      if (control === 'semantic') {
+        if (state.mode) document.getElementById('mode-select').value = state.mode;
+        if (state.fan) document.getElementById('fan-select').value = state.fan;
+        if (state.temp !== undefined) setTemp(state.temp);
+      }
+    }
+    async function postJson(path, payload) {
+      const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.message || `HTTP ${response.status}`);
+      return body;
+    }
+    async function refreshSlots() {
+      const response = await fetch('/api/ac/slots');
+      if (!response.ok) return;
+      const slots = await response.json();
+      const select = document.getElementById('raw-slot-select');
+      const previous = select.value;
+      select.replaceChildren(new Option('Chọn slot đã học', ''));
+      const list = document.getElementById('raw-slot-list');
+      list.replaceChildren();
+      slots.forEach((slot) => {
+        select.add(new Option(slot.name, slot.name));
+        const row = document.createElement('div');
+        row.className = 'list-group-item d-flex justify-content-between align-items-center gap-2';
+        const details = document.createElement('div');
+        details.className = 'd-flex flex-column';
+        const name = document.createElement('span');
+        name.className = 'fw-semibold';
+        name.textContent = slot.name;
+        const time = document.createElement('small');
+        time.className = 'text-secondary';
+        time.textContent = new Date(slot.lastLearnedAt).toLocaleString();
+        details.append(name, time);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'btn btn-sm btn-outline-danger flex-shrink-0';
+        remove.setAttribute('aria-label', `Xóa slot ${slot.name}`);
+        remove.title = `Xóa ${slot.name}`;
+        remove.innerHTML = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i>';
+        remove.addEventListener('click', () => deleteSlot(slot.name));
+        row.append(details, remove);
+        list.appendChild(row);
+      });
+      if (slots.some((slot) => slot.name === previous)) select.value = previous;
+    }
+    async function deleteSlot(slot) {
+      if (!window.confirm(`Xóa nút đã học “${slot}” khỏi giao diện và ESP32?`)) return;
+      try {
+        const response = await fetch(`/api/ac/slots/${encodeURIComponent(slot)}`, { method: 'DELETE' });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.message || `HTTP ${response.status}`);
+        showFeedback(`Đã xóa slot ${slot}.`, 'success');
+        await refreshSlots();
+      } catch (error) {
+        showFeedback(error.message || 'Không xóa được slot.', 'danger');
+      }
+    }
+    function handleAcMessage(message) {
+      if (!message || typeof message !== 'object') return;
+      if (message.power !== undefined || message.control || message.vendor) {
+        acState = { ...(acState || {}), ...message };
+        renderState();
+      }
+      if (message.pairing === 'started') showFeedback('Đang ghép nối. Bấm remote theo thứ tự: Bật → Tăng nhiệt → Giảm nhiệt → Tắt.', 'info');
+      else if (message.pairing === 'complete') showFeedback('Ghép nối hoàn tất. Đã nhận hồ sơ điều hòa.', 'success');
+      else if (message.pairing === 'failed') showFeedback('Ghép nối thất bại hoặc hết thời gian. Hãy thử lại và bấm đủ 4 nút.', 'danger');
+      if (message.status === 'waiting_for_remote') showFeedback(`Đang học slot ${message.learn}. Hướng remote vào mắt thu và bấm nút cần lưu.`, 'info');
+      else if (message.status === 'saved' && message.learn) {
+        showFeedback(`Đã lưu raw slot ${message.learn}.`, 'success');
+        refreshSlots();
+      } else if (message.status === 'sent' && message.raw_slot) showFeedback(`Đã phát slot ${message.raw_slot}.`, 'success');
+      if (message.error) showFeedback(`Firmware báo lỗi: ${message.error}`, 'danger');
+    }
+
+    socket.on('deviceConnectionUpdate', (status) => { deviceOnline = !!status.online; renderState(); });
+    socket.on('acStateUpdate', handleAcMessage);
+    document.getElementById('temp-range').addEventListener('input', (event) => setTemp(event.target.value));
+    document.getElementById('temp-down').addEventListener('click', () => setTemp(Number(document.getElementById('temp-range').value) - 1));
+    document.getElementById('temp-up').addEventListener('click', () => setTemp(Number(document.getElementById('temp-range').value) + 1));
+    document.getElementById('pair-button').addEventListener('click', async () => {
+      try { await postJson('/api/ac/command', { pair: true }); showFeedback('Đã gửi yêu cầu ghép nối. Chờ firmware sẵn sàng rồi bấm remote.', 'info'); }
+      catch (error) { showFeedback(error.message, 'danger'); }
+    });
+    document.getElementById('power-on').addEventListener('click', () => sendCommand({ power: 1 }));
+    document.getElementById('power-off').addEventListener('click', () => sendCommand({ power: 0 }));
+    document.getElementById('apply-climate').addEventListener('click', () => sendCommand({
+      power: 1,
+      mode: document.getElementById('mode-select').value,
+      temp: Number(document.getElementById('temp-range').value),
+      fan: document.getElementById('fan-select').value
+    }));
+    document.getElementById('learn-slot').addEventListener('click', async () => {
+      const slot = document.getElementById('slot-name').value.trim();
+      try { await postJson('/api/ac/learn', { slot }); showFeedback(`Đã yêu cầu học ${slot}; hãy bấm nút trên remote khi firmware sẵn sàng.`, 'info'); }
+      catch (error) { showFeedback(error.message, 'danger'); }
+    });
+    document.getElementById('send-slot').addEventListener('click', () => {
+      const slot = document.getElementById('raw-slot-select').value;
+      if (!slot) return showFeedback('Chọn một raw slot trước khi phát.', 'warning');
+      sendCommand({ slot });
+    });
+    async function sendCommand(command) {
+      try { await postJson('/api/ac/command', command); showFeedback('Đã gửi lệnh; đang chờ trạng thái từ ESP32.', 'info'); }
+      catch (error) { showFeedback(error.message, 'danger'); }
+    }
+
+    fetch('/api/ac/state').then((response) => response.json()).then((state) => { acState = state; renderState(); }).catch(() => renderState());
+    refreshSlots();
+  </script>
+  <script src="/js/auth-ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+/* index.css */
+
+/* --- Kiểu dáng chung cho các thẻ (card) --- */
+.card {
+    background-color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    color: #343a40;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background-color: transparent;
+    border-bottom: 1px solid #e9ecef;
+    font-weight: 600;
+    color: #212529;
+}
+
+/* --- Kiểu dáng màu sắc đặc trưng cho các ô cảm biến --- */
+#col-temperature {
+    background: linear-gradient(135deg, #fdc830, #f37335);
+}
+#col-humidity {
+    background: linear-gradient(135deg, #6a11cb, #2575fc);
+}
+#col-light {
+    background: linear-gradient(135deg, #fffc00, #ffffff);
+}
+
+.sensor-status-card {
+    min-height: 104px;
+    border: 1px solid #e9ecef;
+}
+
+.sensor-status-card .card-body {
+    padding: 1rem 1.25rem;
+}
+
+.alarm-active {
+    border: 2px solid #dc3545;
+    background: #fff1f2;
+}
+
+/* --- Chữ trong các ô cảm biến --- */
+#col-temperature .card-title, #col-temperature .card-text,
+#col-humidity .card-title, #col-humidity .card-text,
+#col-light .card-title, #col-light .card-text {
+    color: #ffffff;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+}
+
+/* --- Kiểu dáng cho nút gạt điều khiển --- */
+.form-check-label {
+    font-weight: 500;
+    color: #343a40;
+    font-size: 1.1rem;
+}
+
+.form-switch .form-check-input {
+    width: 50px;
+    height: 28px;
+    background-color: #adb5bd;
+    border-radius: 28px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.form-switch .form-check-input:checked {
+    background-color: #0d6efd;
+}
+
+/* --- Hiệu ứng cho icon thiết bị --- */
+
+/* 1. Hiệu ứng quạt quay */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spinning {
+    animation: spin 1.5s linear infinite;
+}
+
+/* 2. Hiệu ứng điều hòa phả hơi xuống dưới */
+.ac-container {
+    position: relative;
+    width: 32px;
+    height: 32px;
+}
+
+.ac-image-icon {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    filter: grayscale(100%) brightness(1.5);
+    transition: filter 0.3s ease-in-out;
+}
+
+.blowing .ac-image-icon {
+    filter: grayscale(0%) brightness(1);
+}
+
+.air-streams {
+    position: absolute;
+    top: 90%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30px;
+    height: 40px;
+    pointer-events: none;
+}
+
+.stream {
+    position: absolute;
+    width: 3px;
+    height: 10px;
+    background: #00BFFF; /* MÀU XANH ĐẬM HƠN */
+    border-radius: 2px;
+    opacity: 0;
+    box-shadow: 0 0 8px #00BFFF; /* BÓNG MÀU XANH ĐẬM HƠN */
+}
+
+.blowing .stream {
+    animation: blow-out-down 1.4s ease-out infinite;
+}
+
+.blowing .stream:nth-child(1) {
+    left: 2px;
+    animation-delay: 0s;
+}
+
+.blowing .stream:nth-child(2) {
+    left: 13px;
+    animation-delay: 0.5s;
+}
+
+.blowing .stream:nth-child(3) {
+    left: 24px;
+    animation-delay: 1s;
+}
+
+@keyframes blow-out-down {
+    0% {
+        transform: translateY(0);
+        opacity: 0.9;
+    }
+    100% {
+        transform: translateY(30px);
+        height: 20px;
+        opacity: 0;
+    }
+}
+
+/* 3. Hiệu ứng đèn sáng */
+.lit {
+    color: #ffeb3b;
+    text-shadow: 0 0 8px #ffeb3b, 0 0 12px #ffeb3b;
+}
+/* --- Hiệu ứng Loading --- */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    border-radius: 12px;
+    backdrop-filter: blur(2px);
+    display: none; /* Mặc định ẩn */
+}
+
+.loading-overlay .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Class để vô hiệu hóa các nút gạt */
+.controls-disabled .form-check-input {
+    pointer-events: none;
+    opacity: 0.5;
+}

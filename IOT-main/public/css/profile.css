@@ -1,0 +1,112 @@
+/* public/css/profile.css */
+.main-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f0f2f5;
+    height: 100vh;
+    padding: 20px;
+}
+
+.profile-container {
+    max-width: 500px; /* Tăng chiều rộng để vừa vặn hơn */
+    width: 100%;
+}
+
+.profile-card {
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.profile-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+}
+
+.profile-header {
+    background: linear-gradient(135deg, #6a11cb, #2575fc);
+    padding: 40px 20px 70px; /* Tăng padding dưới để ảnh nằm chồng lên */
+    position: relative;
+}
+
+.profile-img {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    border: 5px solid white;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    object-fit: cover;
+    margin: 0 auto;
+    position: absolute;
+    bottom: -70px; /* Đẩy ảnh xuống một nửa */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1;
+}
+
+.profile-body {
+    padding: 90px 30px 30px; /* Tăng padding trên để chừa không gian cho ảnh */
+}
+
+.profile-name {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.profile-major {
+    color: #777;
+    font-size: 1.1rem;
+    margin-bottom: 25px;
+}
+
+.profile-info {
+    text-align: left;
+    margin-bottom: 30px;
+    color: #555;
+    border-top: 1px solid #eee;
+    padding-top: 25px;
+}
+
+.profile-info p {
+    margin-bottom: 20px;
+    font-style: italic;
+    text-align: center;
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    font-size: 1rem;
+}
+
+.info-item i {
+    color: #2575fc;
+    font-size: 1.2rem;
+    width: 30px;
+    text-align: center;
+    margin-right: 15px;
+}
+
+.social-links {
+    display: flex;
+    justify-content: center;
+    gap: 25px; /* Tăng khoảng cách */
+}
+
+.social-links a {
+    color: #adb5bd;
+    font-size: 1.8rem;
+    transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.social-links a:hover {
+    color: #2575fc;
+    transform: scale(1.2);
+}

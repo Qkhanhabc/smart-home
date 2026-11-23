@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cảnh báo email - Smart Home</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>.alert-card{border:0;border-radius:16px;box-shadow:0 5px 18px rgba(28,49,82,.08)}.state-line{min-height:1.5rem}</style>
+</head>
+<body>
+  <div class="sidebar bg-dark text-white">
+    <div class="logo mb-4"><i class="fa-solid fa-gauge-high me-2"></i> Smart Home</div>
+    <a href="index.html"><i class="fa-solid fa-tachometer-alt me-2"></i> Dashboard</a>
+    <a href="airconditioner.html"><i class="fa-solid fa-snowflake me-2"></i> Điều hòa</a>
+    <a href="automation.html"><i class="fa-solid fa-wand-magic-sparkles me-2"></i> Tự động hóa</a>
+    <a href="alerts.html" class="active"><i class="fa-solid fa-envelope me-2"></i> Cảnh báo email</a>
+    <a href="datasensor.html"><i class="fa-solid fa-database me-2"></i> Data Sensor</a>
+    <a href="history.html"><i class="fa-solid fa-history me-2"></i> History</a>
+    <a href="stats.html"><i class="fa-solid fa-chart-pie me-2"></i> Thống kê</a>
+    <a href="profile.html"><i class="fa-solid fa-microchip me-2"></i> Thông tin hệ thống</a>
+  </div>
+  <main class="main-content p-3">
+    <h1 class="h2 mb-1">Cảnh báo khói / khí gas qua email</h1>
+    <p class="text-secondary mb-3">Gửi một email khi MQ-2 chuyển từ trạng thái bình thường sang cảnh báo. Khi cảm biến trở lại bình thường rồi phát hiện lại, hệ thống gửi email mới.</p>
+    <div id="feedback" class="alert d-none state-line" role="status"></div>
+    <section class="card alert-card" style="max-width:760px"><div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h5 mb-0">Thiết lập người nhận</h2><span id="smtp-status" class="badge text-bg-secondary">Đang kiểm tra SMTP</span></div>
+      <div class="form-check form-switch mb-3"><input id="enabled" class="form-check-input" type="checkbox"><label for="enabled" class="form-check-label">Bật gửi email khi có cảnh báo</label></div>
+      <label for="email" class="form-label">Email nhận cảnh báo</label>
+      <input id="email" class="form-control" type="email" maxlength="254" placeholder="ten@example.com" autocomplete="email">
+      <div class="form-text mb-3">Thông tin máy chủ SMTP và mật khẩu ứng dụng được cấu hình ở `.env` trên máy chạy website, không nhập lên trình duyệt.</div>
+      <div class="d-flex flex-wrap gap-2"><button id="save" class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-2"></i>Lưu</button><button id="send-test" class="btn btn-outline-primary"><i class="fa-solid fa-paper-plane me-2"></i>Gửi email thử</button></div>
+      <hr><div><strong>Trạng thái gửi gần nhất:</strong> <span id="last-status" class="text-secondary">Chưa có email mới trong phiên này</span></div>
+    </div></section>
+  </main>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const $ = (id) => document.getElementById(id);
+    function show(message, ok = true) { const box = $('feedback'); box.textContent = message; box.className = `alert alert-${ok ? 'success' : 'danger'} state-line`; }
+    function setMailStatus(result) {
+      if (result.sent) $('last-status').textContent = `Đã gửi tới ${result.email} lúc ${new Date(result.createdAt || Date.now()).toLocaleString()}`;
+      else $('last-status').textContent = `Gửi thất bại: ${result.message || 'Lỗi không xác định'}`;
+      $('last-status').className = result.sent ? 'text-success' : 'text-danger';
+    }
+    async function loadConfig() {
+      const response = await fetch('/api/alerts/config'); const config = await response.json();
+      if (!response.ok) throw new Error(config.message || 'Không tải được cài đặt');
+      $('enabled').checked = config.enabled; $('email').value = config.email || '';
+      $('smtp-status').textContent = config.smtpConfigured ? 'SMTP đã có cấu hình' : 'Thiếu cấu hình SMTP trong .env';
+      $('smtp-status').className = `badge ${config.smtpConfigured ? 'text-bg-success' : 'text-bg-warning'}`;
+    }
+    $('save').addEventListener('click', async () => {
+      try {
+        const response = await fetch('/api/alerts/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: $('enabled').checked, email: $('email').value.trim() }) });
+        const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Không lưu được');
+        await loadConfig(); show('Đã lưu cấu hình email cảnh báo.');
+      } catch (error) { show(error.message, false); }
+    });
+    $('send-test').addEventListener('click', async () => {
+      try {
+        const response = await fetch('/api/alerts/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const result = await response.json(); if (!response.ok) throw new Error(result.message || 'Không gửi được email thử');
+        show('Đã gửi email thử. Kiểm tra hộp thư đến và thư rác.');
+      } catch (error) { show(error.message, false); }
+    });
+    socket.on('smokeAlarmEmailStatus', setMailStatus);
+    loadConfig().catch((error) => show(error.message, false));
+  </script>
+  <script src="/js/auth-ui.js"></script>
+</body>
+</html>

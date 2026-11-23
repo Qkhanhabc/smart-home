@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thông tin hệ thống Smart Home</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .system-card{border:0;border-radius:16px;box-shadow:0 5px 18px rgba(28,49,82,.08)}
+    .system-icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:#edf4ff;color:#1676d2}
+    .spec-table th{width:45%;font-weight:600}
+  </style>
+</head>
+<body>
+  <div class="sidebar bg-dark text-white">
+    <div class="logo mb-4"><i class="fa-solid fa-gauge-high me-2"></i> Smart Home</div>
+    <a href="index.html"><i class="fa-solid fa-tachometer-alt me-2"></i> Dashboard</a>
+    <a href="airconditioner.html"><i class="fa-solid fa-snowflake me-2"></i> Điều hòa</a>
+    <a href="automation.html"><i class="fa-solid fa-wand-magic-sparkles me-2"></i> Tự động hóa</a>
+    <a href="alerts.html"><i class="fa-solid fa-envelope me-2"></i> Cảnh báo email</a>
+    <a href="datasensor.html"><i class="fa-solid fa-database me-2"></i> Dữ liệu cảm biến</a>
+    <a href="history.html"><i class="fa-solid fa-history me-2"></i> Lịch sử</a>
+    <a href="stats.html"><i class="fa-solid fa-chart-pie me-2"></i> Thống kê</a>
+    <a href="profile.html" class="active"><i class="fa-solid fa-microchip me-2"></i> Thông tin hệ thống</a>
+  </div>
+  <main class="main-content p-3">
+    <div class="mb-3"><h1 class="h2 mb-1">Thông tin hệ thống</h1><p class="text-secondary mb-0">Thông số dưới đây lấy từ sketch <code>SmartHome_AC_Integrated</code> và cấu hình MQTT trong firmware.</p></div>
+    <div class="row g-3">
+      <div class="col-lg-6"><section class="card system-card h-100"><div class="card-body p-4">
+        <div class="d-flex align-items-center gap-3 mb-3"><span class="system-icon"><i class="fa-solid fa-microchip"></i></span><div><h2 class="h5 mb-0">Bộ điều khiển</h2><small class="text-secondary">ESP32-S3</small></div></div>
+        <table class="table table-sm spec-table mb-0"><tbody>
+          <tr><th>Điều hòa thu/phát IR</th><td>GPIO 17 / GPIO 22</td></tr>
+          <tr><th>Quạt qua relay</th><td>GPIO 14</td></tr>
+          <tr><th>LED trạng thái 1 / 2 / 3</th><td>GPIO 19 / 21 / 18</td></tr>
+          <tr><th>Còi và LED cảnh báo khói</th><td>GPIO 23 / GPIO 25</td></tr>
+          <tr><th>LCD1602 I²C SDA / SCL</th><td>GPIO 26 / GPIO 27</td></tr>
+        </tbody></table>
+      </div></section></div>
+      <div class="col-lg-6"><section class="card system-card h-100"><div class="card-body p-4">
+        <div class="d-flex align-items-center gap-3 mb-3"><span class="system-icon"><i class="fa-solid fa-satellite-dish"></i></span><div><h2 class="h5 mb-0">Cảm biến</h2><small class="text-secondary">Dữ liệu gửi khoảng mỗi 1,5 giây</small></div></div>
+        <table class="table table-sm spec-table mb-0"><tbody>
+          <tr><th>Nhiệt độ / độ ẩm</th><td>DHT11, GPIO 4</td></tr>
+          <tr><th>Khói / khí gas</th><td>MQ-2 analog, GPIO 32; ngưỡng 1200</td></tr>
+          <tr><th>Phát hiện người</th><td>Radar LD2410C, GPIO 35</td></tr>
+          <tr><th>Ánh sáng</th><td>Analog ADC, GPIO 34</td></tr>
+          <tr><th>Đơn vị ánh sáng trên website</th><td>Giá trị ADC, không phải lux</td></tr>
+        </tbody></table>
+      </div></section></div>
+      <div class="col-lg-6"><section class="card system-card h-100"><div class="card-body p-4">
+        <div class="d-flex align-items-center gap-3 mb-3"><span class="system-icon"><i class="fa-solid fa-wifi"></i></span><div><h2 class="h5 mb-0">Kết nối</h2><small class="text-secondary">ESP32 ↔ website qua EMQX</small></div></div>
+        <table class="table table-sm spec-table mb-0"><tbody>
+          <tr><th>Broker</th><td>EMQX Cloud, MQTT over TLS</td></tr>
+          <tr><th>Host</th><td><code>r3c6ccbf.ala.asia-southeast1.emqxsl.com</code></td></tr>
+          <tr><th>Port</th><td>8883</td></tr>
+          <tr><th>MQTT username</th><td><code>smarthome</code></td></tr>
+          <tr><th>Dữ liệu cảm biến</th><td><code>smarthome/sensors/state</code></td></tr>
+          <tr><th>Lệnh thiết bị / trạng thái</th><td><code>smarthome/device/cmd</code> / <code>smarthome/device/state</code></td></tr>
+          <tr><th>Lệnh / học / trạng thái điều hòa</th><td><code>smarthome/ac/cmd</code> / <code>smarthome/ac/learn</code> / <code>smarthome/ac/state</code></td></tr>
+        </tbody></table>
+        <p class="small text-secondary mt-2 mb-0">Mật khẩu Wi-Fi, MQTT và chuỗi kết nối cơ sở dữ liệu không hiển thị trên trang.</p>
+      </div></section></div>
+      <div class="col-lg-6"><section class="card system-card h-100"><div class="card-body p-4">
+        <div class="d-flex align-items-center gap-3 mb-3"><span class="system-icon"><i class="fa-solid fa-snowflake"></i></span><div><h2 class="h5 mb-0">Điều khiển điều hòa</h2><small class="text-secondary">Điều khiển qua mắt phát hồng ngoại</small></div></div>
+        <ul class="mb-3">
+          <li>Ghép nối remote 4 bước: Power ON → Temp Up → Temp Down → Power OFF.</li>
+          <li>Semantic: gửi trạng thái điều hòa như chế độ, nhiệt độ và quạt khi giao thức được nhận diện.</li>
+          <li>Raw fallback: phát lại các nút đã học; các nhiệt độ cần có slot riêng.</li>
+        </ul>
+        <div class="alert alert-info mb-0 small">Dashboard website có công tắc cho relay quạt, điều hòa bật/tắt và cả ba LED.</div>
+      </div></section></div>
+    </div>
+  </main>
+  <script src="/js/auth-ui.js"></script>
+</body>
+</html>

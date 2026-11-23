@@ -1,0 +1,54 @@
+/* CSS cho trang Data Sensor và History */
+.main-content {
+    height: calc(100vh - 40px); /* Giới hạn chiều cao để vừa màn hình */
+    display: flex;
+    flex-direction: column;
+}
+
+.data-row {
+    flex-grow: 1; /* Cho phép hàng này chiếm hết không gian còn lại */
+}
+
+.full-height-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.full-height-card .card-body {
+    flex-grow: 1;
+    overflow: hidden; /* Ẩn thanh cuộn không cần thiết */
+    padding: 1rem;
+}
+
+/* --- Card chứa bộ lọc --- */
+.filter-card .card-header {
+    background: linear-gradient(135deg, #6a11cb, #2575fc);
+    color: white;
+    font-weight: 600;
+    border-radius: 12px 12px 0 0 !important;
+}
+
+.filter-card .btn-primary {
+    background-color: #2575fc;
+    border: none;
+}
+
+/* --- Card chứa bảng dữ liệu --- */
+.table-card .card-header {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+/* Tùy chỉnh DataTables để vừa với card */
+.dataTables_wrapper {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+.dataTables_scrollBody {
+    flex-grow: 1;
+}
+.dataTables_paginate {
+    padding-top: 1rem;
+}

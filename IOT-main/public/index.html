@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/index.css">
+  <style>
+    .main-content { display: flex; flex-direction: column; min-height: calc(100vh - 40px); height: auto; }
+    .full-height-row { flex-grow: 1; min-height: 420px; }
+    .sensor-panel { position: relative; }
+    .toast-container { position: fixed; bottom: 1rem; right: 1rem; z-index: 1050; }
+    .anomaly-card { border: 0; border-left: 4px solid #6c757d; }
+    .anomaly-card.has-alert { border-left-color: #fd7e14; }
+    .anomaly-item { border-top: 1px solid #edf0f3; padding: .65rem 0; }
+  </style>
+</head>
+<body>
+  <div class="sidebar bg-dark text-white">
+    <div class="logo mb-4"><i class="fa-solid fa-gauge-high me-2"></i> Dashboard</div>
+    <a href="index.html" class="active"><i class="fa-solid fa-tachometer-alt me-2"></i> Dashboard</a>
+    <a href="airconditioner.html"><i class="fa-solid fa-snowflake me-2"></i> Điều hòa</a>
+    <a href="automation.html"><i class="fa-solid fa-wand-magic-sparkles me-2"></i> Tự động hóa</a>
+    <a href="alerts.html"><i class="fa-solid fa-envelope me-2"></i> Cảnh báo email</a>
+    <a href="datasensor.html"><i class="fa-solid fa-database me-2"></i> Data Sensor</a>
+    <a href="history.html"><i class="fa-solid fa-history me-2"></i> History</a>
+    <a href="stats.html"><i class="fa-solid fa-chart-pie me-2"></i> Thống kê</a>
+    <a href="profile.html"><i class="fa-solid fa-microchip me-2"></i> Thông tin hệ thống</a>
+  </div>
+
+  <div class="main-content p-3">
+    <div class="row mb-3">
+      <div class="col-md-4 sensor-panel"><div class="card text-white h-100" id="col-temperature"><div class="card-body d-flex flex-column align-items-center justify-content-center"><i class="fas fa-thermometer-half fa-2x"></i><h5 class="card-title mt-2">Nhiệt độ</h5><p class="card-text display-6" id="temperature">-- °C</p></div></div><div class="loading-overlay"><div class="spinner-border text-danger" role="status"></div></div></div>
+      <div class="col-md-4 sensor-panel"><div class="card text-white h-100" id="col-humidity"><div class="card-body d-flex flex-column align-items-center justify-content-center"><i class="fas fa-tint fa-2x"></i><h5 class="card-title mt-2">Độ ẩm</h5><p class="card-text display-6" id="humidity">-- %</p></div></div><div class="loading-overlay"><div class="spinner-border text-primary" role="status"></div></div></div>
+      <div class="col-md-4 sensor-panel"><div class="card text-white h-100" id="col-light"><div class="card-body d-flex flex-column align-items-center justify-content-center"><i class="fas fa-lightbulb fa-2x"></i><h5 class="card-title mt-2">Ánh sáng (ADC)</h5><p class="card-text display-6" id="light">--</p></div></div><div class="loading-overlay"><div class="spinner-border text-warning" role="status"></div></div></div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-4"><div class="card sensor-status-card h-100"><div class="card-body d-flex align-items-center gap-3"><i class="fas fa-smog fa-2x text-secondary"></i><div><h6 class="mb-1">MQ-2 (ADC)</h6><div class="fs-4" id="mq2-value">--</div><span class="badge text-bg-secondary" id="smoke-alarm-state">Chưa có dữ liệu</span></div></div></div></div>
+      <div class="col-md-4"><div class="card sensor-status-card h-100"><div class="card-body d-flex align-items-center gap-3"><i class="fas fa-person fa-2x text-primary"></i><div><h6 class="mb-1">Radar GPIO35</h6><div class="fs-5 fw-semibold" id="person-state">Chưa có dữ liệu</div></div></div></div></div>
+      <div class="col-md-4"><div class="card sensor-status-card h-100" id="alarm-panel"><div class="card-body d-flex align-items-center gap-3"><i class="fas fa-triangle-exclamation fa-2x text-warning"></i><div><h6 class="mb-1">Cảnh báo khói / khí gas</h6><div class="fs-5 fw-semibold" id="smoke-alarm-text">Chưa có dữ liệu</div></div></div></div></div>
+    </div>
+
+    <section class="card anomaly-card mb-3" id="anomalyCard" aria-live="polite">
+      <div class="card-body">
+        <div class="d-flex align-items-start gap-3">
+          <i class="fa-solid fa-wand-magic-sparkles fs-4 text-primary mt-1"></i>
+          <div class="flex-grow-1">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div><h2 class="h5 mb-1">Phân tích bất thường</h2><p class="small text-secondary mb-2">So sánh với 30 mẫu gần nhất; cần ít nhất 12 mẫu để tạo mức nền. Cảnh báo khói vẫn hoạt động độc lập.</p></div>
+              <span class="badge text-bg-secondary" id="anomalyStatus">Đang chờ dữ liệu</span>
+            </div>
+            <div id="anomalyList" class="small text-secondary">Đang tải kết quả phân tích…</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="row full-height-row">
+      <div class="col-lg-8 h-100"><div class="card h-100 position-relative"><div class="card-header">Dữ liệu cảm biến theo thời gian thực</div><div class="card-body d-flex align-items-center"><canvas id="sensorChart"></canvas></div><div class="loading-overlay"><div class="spinner-border text-secondary" role="status"></div></div></div></div>
+      <div id="controls-container" class="col-lg-4 h-100 d-flex flex-column">
+        <div class="card mb-3 flex-fill position-relative"><div class="card-body d-flex align-items-center"><i id="fan-icon" class="fas fa-fan fa-2x me-3"></i><div class="form-check form-switch w-100"><label class="form-check-label" for="fanSwitch">Quạt</label><input class="form-check-input device-switch float-end" type="checkbox" id="fanSwitch"></div></div><div class="loading-overlay"><div class="spinner-border text-secondary" role="status"></div></div></div>
+        <div class="card mb-3 flex-fill position-relative"><div class="card-body d-flex align-items-center"><div id="ac-container" class="ac-container me-3"><img id="ac-image-icon" src="/img/ac_icon.png" alt="Điều hòa" class="ac-image-icon"><div class="air-streams"><span class="stream"></span><span class="stream"></span><span class="stream"></span></div></div><div class="form-check form-switch w-100"><label class="form-check-label" for="acSwitch">Điều hòa</label><input class="form-check-input device-switch float-end" type="checkbox" id="acSwitch"></div></div><div class="loading-overlay"><div class="spinner-border text-secondary" role="status"></div></div></div>
+        <div class="card mb-3 flex-fill position-relative"><div class="card-body d-flex align-items-center"><i id="light-icon" class="fas fa-lightbulb fa-2x me-3"></i><div class="form-check form-switch w-100"><label class="form-check-label" for="lightSwitch">Đèn 1</label><input class="form-check-input device-switch float-end" type="checkbox" id="lightSwitch"></div></div><div class="loading-overlay"><div class="spinner-border text-secondary" role="status"></div></div></div>
+        <div class="card mb-3 flex-fill position-relative"><div class="card-body d-flex align-items-center"><i id="light2-icon" class="fas fa-lightbulb fa-2x me-3"></i><div class="form-check form-switch w-100"><label class="form-check-label" for="light2Switch">Đèn 2</label><input class="form-check-input device-switch float-end" type="checkbox" id="light2Switch"></div></div><div class="loading-overlay"><div class="spinner-border text-secondary" role="status"></div></div></div>
+        <div class="card flex-fill position-relative"><div class="card-body d-flex align-items-center"><i id="light3-icon" class="fas fa-lightbulb fa-2x me-3"></i><div class="form-check form-switch w-100"><label class="form-check-label" for="light3Switch">Đèn 3</label><input class="form-check-input device-switch float-end" type="checkbox" id="light3Switch"></div></div><div class="loading-overlay"><div class="spinner-border text-secondary" role="status"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const myChart = new Chart(document.getElementById('sensorChart').getContext('2d'), { type: 'line', data: { labels: [], datasets: [{ label: 'Nhiệt độ (°C)', data: [], yAxisID: 'y', tension: 0.4, borderColor: '#ff6384', pointBackgroundColor: '#ff6384', fill: true }, { label: 'Độ ẩm (%)', data: [], yAxisID: 'y', tension: 0.4, borderColor: '#36a2eb', pointBackgroundColor: '#36a2eb', fill: true }, { label: 'Ánh sáng (ADC)', data: [], yAxisID: 'y1', tension: 0.4, borderColor: '#ffce56', pointBackgroundColor: '#ffce56', fill: true }] }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { title: { display: true, text: 'Thời gian' } }, y: { position: 'left', title: { display: true, text: 'Nhiệt độ (°C) / Độ ẩm (%)' } }, y1: { position: 'right', title: { display: true, text: 'Giá trị ánh sáng ADC' }, grid: { drawOnChartArea: false } } }, plugins: { legend: { position: 'top' } } } });
+    
+    let commandTimeout;
+    let dataWatchdog;
+    let lastConfirmedStatus = { fan: 'OFF', ac: 'OFF', led1: 'OFF', led2: 'OFF', led3: 'OFF' };
+
+    function setControlsState(isLoading) {
+        const overlays = document.querySelectorAll('.loading-overlay');
+        const switches = document.querySelectorAll('.device-switch');
+
+        overlays.forEach(el => {
+            el.style.display = isLoading ? 'flex' : 'none';
+        });
+
+        switches.forEach(sw => {
+            sw.disabled = isLoading;
+        });
+    }
+
+    function showToast(message, type = 'danger') {
+        const toastContainer = document.querySelector('.toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type} border-0 show`;
+        toast.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+        toastContainer.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+    
+    function resetDataWatchdog() {
+        clearTimeout(dataWatchdog);
+        dataWatchdog = setTimeout(() => {
+            console.error("Mất kết nối! Không nhận được dữ liệu cảm biến.");
+            showToast('Mất kết nối với thiết bị!', 'warning');
+            setControlsState(true); // Vô hiệu hóa nút gạt và hiện loading
+        }, 7000); // 7 giây
+    }
+
+    function addDataToChart(dp) { const t = new Date(dp.createdAt).toLocaleTimeString(); myChart.data.labels.push(t); myChart.data.datasets.forEach((ds, i) => ds.data.push(i === 0 ? dp.temperature : i === 1 ? dp.humidity : dp.light)); if (myChart.data.labels.length > 20) { myChart.data.labels.shift(); myChart.data.datasets.forEach(ds => ds.data.shift()); } }
+    function updatePanels(data) {
+      const show = (value, suffix = '') => value === null || value === undefined || !Number.isFinite(Number(value)) ? '--' : `${Number(value).toFixed(suffix === ' °C' ? 1 : 0)}${suffix}`;
+      document.getElementById('temperature').textContent = show(data.temperature, ' °C');
+      document.getElementById('humidity').textContent = show(data.humidity, ' %');
+      document.getElementById('light').textContent = show(data.light);
+      document.getElementById('mq2-value').textContent = show(data.mq2);
+      const hasPerson = data.person === true || data.person === 1 || data.person === 'true';
+      const personKnown = data.person !== null && data.person !== undefined;
+      document.getElementById('person-state').textContent = personKnown ? (hasPerson ? 'Phát hiện người' : 'Không phát hiện') : 'Chưa có dữ liệu';
+      const alarm = data.smokeAlarm === true || data.smokeAlarm === 1 || data.smokeAlarm === 'true';
+      const alarmKnown = data.smokeAlarm !== null && data.smokeAlarm !== undefined;
+      const alarmBadge = document.getElementById('smoke-alarm-state');
+      const alarmText = document.getElementById('smoke-alarm-text');
+      alarmBadge.textContent = !alarmKnown ? 'Chưa có dữ liệu' : (alarm ? 'ĐANG CẢNH BÁO' : 'Bình thường');
+      alarmBadge.className = `badge ${!alarmKnown ? 'text-bg-secondary' : (alarm ? 'text-bg-danger' : 'text-bg-success')}`;
+      alarmText.textContent = !alarmKnown ? 'Chưa có dữ liệu' : (alarm ? 'Phát hiện khói / khí gas' : 'Không có cảnh báo');
+      document.getElementById('alarm-panel').classList.toggle('alarm-active', alarmKnown && alarm);
+      ['temperature', 'humidity', 'light'].forEach(t => updateBackground(data[t], t));
+    }
+    function controlDevice(d, a) { fetch('/api/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ device: d, action: a }) }); }
+    function applyEffects(s) {
+      const fan=document.getElementById('fan-icon'), ac=document.getElementById('ac-container');
+      fan.classList.toggle('spinning', s.fan === 'ON'); ac.classList.toggle('blowing', s.ac === 'ON');
+      document.getElementById('light-icon').classList.toggle('lit', s.led1 === 'ON');
+      document.getElementById('light2-icon').classList.toggle('lit', s.led2 === 'ON');
+      document.getElementById('light3-icon').classList.toggle('lit', s.led3 === 'ON');
+    }
+    function updateBackground(v, t) { let c; if(t==="temperature"){c=`linear-gradient(135deg, #fdc830, #f37335)`} else if(t==="humidity"){c=`linear-gradient(135deg, #6a11cb, #2575fc)`} else if(t==="light"){c=`linear-gradient(135deg, #fffc00, #ffffff)`} document.querySelector(`#col-${t}`).style.background=c; }
+
+    function updateSwitches(status) {
+        document.getElementById('fanSwitch').checked = (status.fan === "ON");
+        document.getElementById('acSwitch').checked = (status.ac === "ON");
+        document.getElementById('lightSwitch').checked = (status.led1 === "ON");
+        document.getElementById('light2Switch').checked = (status.led2 === "ON");
+        document.getElementById('light3Switch').checked = (status.led3 === "ON");
+        applyEffects(status);
+        lastConfirmedStatus = { ...status }; // Lưu lại trạng thái đã xác nhận
+    }
+
+    socket.on('newSensorData', data => {
+      setControlsState(false); // Kích hoạt lại nút gạt và tắt loading
+      resetDataWatchdog();
+      addDataToChart(data); myChart.update(); updatePanels(data);
+    });
+    
+    socket.on('deviceStatusUpdate', status => {
+      clearTimeout(commandTimeout);
+      document.querySelectorAll('#controls-container .loading-overlay').forEach(el => el.style.display = 'none');
+      updateSwitches(status);
+    });
+
+    socket.on('smokeAlarmEmailStatus', result => {
+      showToast(result.sent ? `Đã gửi email cảnh báo tới ${result.email}` : `Gửi email cảnh báo thất bại: ${result.message}`, result.sent ? 'success' : 'danger');
+    });
+
+    function renderAnomalies(events) {
+      const list = document.getElementById('anomalyList');
+      const card = document.getElementById('anomalyCard');
+      const status = document.getElementById('anomalyStatus');
+      list.replaceChildren();
+      card.classList.toggle('has-alert', events.length > 0);
+      status.className = `badge ${events.length ? 'text-bg-warning' : 'text-bg-success'}`;
+      status.textContent = events.length ? `${events.length} bất thường gần đây` : 'Không phát hiện';
+      if (!events.length) {
+        list.textContent = 'Chưa ghi nhận bất thường. Nếu hệ thống mới chạy, hãy đợi tối thiểu 12 mẫu lưu trong MongoDB để tạo mức nền.';
+        return;
+      }
+      events.forEach(event => {
+        const row = document.createElement('div');
+        row.className = 'anomaly-item d-flex justify-content-between align-items-start gap-3';
+        const detail = document.createElement('div');
+        detail.textContent = `${event.message}${event.occurrences > 1 ? ` (lặp ${event.occurrences} lần)` : ''}`;
+        const time = document.createElement('time');
+        time.className = 'text-nowrap text-secondary';
+        time.dateTime = event.lastSeenAt;
+        time.textContent = new Date(event.lastSeenAt).toLocaleString('vi-VN');
+        const badge = document.createElement('span');
+        badge.className = `badge ${event.severity === 'high' ? 'text-bg-danger' : 'text-bg-warning'} me-2`;
+        badge.textContent = event.severity === 'high' ? 'Cao' : 'Vừa';
+        const info = document.createElement('div');
+        info.append(badge, detail);
+        row.append(info, time);
+        list.appendChild(row);
+      });
+    }
+
+    async function loadAnomalies() {
+      try {
+        const response = await fetch('/api/anomalies/recent');
+        if (!response.ok) return;
+        const data = await response.json();
+        renderAnomalies(data.events || []);
+      } catch (error) { console.warn('Không thể tải phân tích bất thường:', error); }
+    }
+    socket.on('sensorAnomaly', loadAnomalies);
+    setInterval(loadAnomalies, 60_000);
+    
+    window.onload = () => {
+      loadAnomalies();
+      fetch('/api/status-data').then(res => res.json()).then(data => updateSwitches(data));
+      fetch('/api/sensor-data?limit=20').then(res => res.json()).then(response => { const d = response.data.reverse(); d.forEach(dp => addDataToChart(dp)); myChart.update(); if (d.length > 0) updatePanels(d[d.length - 1]); });
+      resetDataWatchdog();
+    };
+
+    document.querySelectorAll('.device-switch').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const controlOverlay = e.target.closest('.card').querySelector('.loading-overlay');
+        controlOverlay.style.display = 'flex';
+        
+        const label = e.target.closest('.form-check').querySelector('label').textContent.trim();
+        const deviceMap = {'Quạt':'quạt','Điều hòa':'điều hòa','Đèn 1':'led1','Đèn 2':'led2','Đèn 3':'led3'};
+        const device = deviceMap[label];
+        const action = e.target.checked ? 'on' : 'off';
+        
+        controlDevice(device, action);
+        
+        commandTimeout = setTimeout(() => {
+          console.error("Không nhận được phản hồi lệnh điều khiển!");
+          showToast(`Lỗi: Thiết bị '${label}' không phản hồi.`, 'danger');
+          controlOverlay.style.display = 'none';
+          updateSwitches(lastConfirmedStatus); // QUAN TRỌNG: Quay về trạng thái đúng cuối cùng
+        }, 5000);
+      });
+    });
+  </script>
+  <script src="/js/auth-ui.js"></script>
+</body>
+</html>

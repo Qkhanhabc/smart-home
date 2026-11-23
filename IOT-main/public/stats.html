@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thống kê</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/data-pages.css">
+    <style>
+        /* (Giữ nguyên thẻ <style> của bạn) */
+        .stat-card { background-color: #fff; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); padding: 20px; text-align: center; height: 100%; }
+        .stat-card h3 { font-size: 1.3rem; color: #6a11cb; }
+        .stat-card .display-4 { font-weight: 700; color: #2575fc; }
+        .list-group-item { display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem; }
+        .list-group-item .badge { font-size: 1rem; }
+        .form-label { font-weight: 600; }
+        .main-content { display: flex; flex-direction: column; height: calc(100vh - 40px); }
+        .stats-content-row { flex-grow: 1; overflow: hidden; }
+        .full-height-col { height: 100%; display: flex; flex-direction: column; }
+        .stats-card-scrollable { flex-grow: 1; display: flex; flex-direction: column; }
+        .stats-card-scrollable .card-body { flex-grow: 1; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="sidebar bg-dark text-white">
+        <div class="logo mb-4"><i class="fa-solid fa-gauge-high me-2"></i> Thống kê</div>
+        <a href="index.html"><i class="fa-solid fa-tachometer-alt me-2"></i> Dashboard</a>
+        <a href="airconditioner.html"><i class="fa-solid fa-snowflake me-2"></i> Điều hòa</a>
+        <a href="automation.html"><i class="fa-solid fa-wand-magic-sparkles me-2"></i> Tự động hóa</a>
+        <a href="alerts.html"><i class="fa-solid fa-envelope me-2"></i> Cảnh báo email</a>
+        <a href="datasensor.html"><i class="fa-solid fa-database me-2"></i> Data Sensor</a>
+        <a href="history.html"><i class="fa-solid fa-history me-2"></i> History</a>
+        <a href="stats.html" class="active"><i class="fa-solid fa-chart-pie me-2"></i> Thống kê</a>
+        <a href="profile.html"><i class="fa-solid fa-microchip me-2"></i> Thông tin hệ thống</a>
+    </div>
+
+    <div class="main-content p-3">
+        <h1 class="mb-4">Dashboard Thống Kê</h1>
+        
+        <div class="card mb-3">
+            <div class="card-header"><i class="fas fa-sliders-h me-2"></i> Thiết Lập Ngưỡng & Bộ Lọc</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label for="threshold-temp" class="form-label">Ngưỡng Nhiệt Độ (°C)</label>
+                        <input type="number" class="form-control" id="threshold-temp">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="threshold-humi" class="form-label">Ngưỡng Độ Ẩm (%)</label>
+                        <input type="number" class="form-control" id="threshold-humi">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="threshold-light" class="form-label">Ngưỡng Ánh Sáng (ADC)</label>
+                        <input type="number" class="form-control" id="threshold-light">
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-5">
+                        <label for="filter-start-date" class="form-label">Từ ngày</label>
+                        <input type="datetime-local" class="form-control" id="filter-start-date">
+                    </div>
+                    <div class="col-md-5">
+                        <label for="filter-end-date" class="form-label">Đến ngày</label>
+                        <input type="datetime-local" class="form-control" id="filter-end-date">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-secondary w-100" id="btn-clear-dates" title="Xóa bộ lọc ngày giờ">
+                            <i class="fas fa-times"></i> Xóa ngày
+                        </button>
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary mt-3" id="btn-update-stats">
+                    <i class="fas fa-save me-2"></i> Lưu & Cập nhật Thống kê
+                </button>
+            </div>
+        </div>
+
+        <div class="row stats-content-row">
+            <div class="col-lg-7">
+                <h2 class="h4 mb-3">Thống kê vượt ngưỡng</h2>
+                <div class="row h-100">
+                    <div class="col-md-4 pb-3">
+                        <div class="stat-card">
+                            <h3><i class="fas fa-thermometer-half me-2 text-danger"></i> Vượt Nhiệt Độ</h3>
+                            <p class="display-4" id="temp-count">0</p>
+                            <p class="text-muted mb-0">lần</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 pb-3">
+                        <div class="stat-card">
+                            <h3><i class="fas fa-tint me-2 text-primary"></i> Vượt Độ Ẩm</h3>
+                            <p class="display-4" id="humi-count">0</p>
+                            <p class="text-muted mb-0">lần</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 pb-3">
+                        <div class="stat-card">
+                            <h3><i class="fas fa-lightbulb me-2 text-warning"></i> Vượt Ánh Sáng</h3>
+                            <p class="display-4" id="light-count">0</p>
+                            <p class="text-muted mb-0">lần</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5 full-height-col">
+                <h2 class="h4 mb-3">Thống kê Bật/Tắt Thiết Bị</h2>
+                <div class="card stats-card-scrollable">
+                    <div class="card-header"><i class="fas fa-toggle-on me-2"></i> Lịch sử hành động (Tổng số lần)</div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush" id="device-toggle-list">
+                            <li class="list-group-item">Đang tải...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io(); 
+    
+        // === CẬP NHẬT: Tải Ngưỡng và Ngày/Giờ từ DB ===
+        async function loadSettings() {
+            try {
+                // 1. Tải cài đặt (ngưỡng VÀ ngày/giờ) từ DB
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+                
+                $('#threshold-temp').val(settings.temp);
+                $('#threshold-humi').val(settings.humi);
+                $('#threshold-light').val(settings.light);
+                
+                // 2. Tải cài đặt ngày/giờ (giá trị trả về là "" nếu rỗng)
+                $('#filter-start-date').val(settings.startDate || '');
+                $('#filter-end-date').val(settings.endDate || '');
+                
+            } catch (error) {
+                console.error('Lỗi khi tải cài đặt:', error);
+            }
+        }
+
+        // === CẬP NHẬT: Lưu Ngưỡng và Ngày/Giờ vào DB ===
+        async function saveSettings() {
+            try {
+                const settings = {
+                    // Ngưỡng
+                    temp: $('#threshold-temp').val(),
+                    humi: $('#threshold-humi').val(),
+                    light: $('#threshold-light').val(),
+                    // Ngày/Giờ
+                    startDate: $('#filter-start-date').val(),
+                    endDate: $('#filter-end-date').val()
+                };
+                
+                // Gửi tất cả cài đặt lên DB
+                await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+            } catch (error)
+            {
+                console.error('Lỗi khi lưu cài đặt:', error);
+            }
+        }
+
+        // === CẬP NHẬT: Xóa Ngày/Giờ (Lưu ngay vào DB) ===
+        async function clearDatesAndSave() {
+            $('#filter-start-date').val('');
+            $('#filter-end-date').val('');
+            // Gọi saveSettings để lưu các giá trị rỗng vào DB ngay lập tức
+            await saveSettings();
+        }
+
+        // (Các hàm fetchToggleStats và fetchThresholdStats không đổi)
+        // === API: Thống kê bật tắt ===
+        async function fetchToggleStats() {
+            const startDate = $('#filter-start-date').val();
+            const endDate = $('#filter-end-date').val();
+
+            let url = '/api/stats/toggles';
+            const params = new URLSearchParams();
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
+            
+            const queryString = params.toString();
+            if (queryString) {
+                url += `?${queryString}`;
+            }
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const list = $('#device-toggle-list');
+                list.empty(); 
+
+                if (data.length === 0) {
+                    list.append('<li class="list-group-item">Chưa có dữ liệu cho khoảng thời gian này.</li>');
+                    return;
+                }
+                
+                data.forEach(item => {
+                    let icon = 'fas fa-cog';
+                    if (item._id === 'quạt') icon = 'fas fa-fan text-primary';
+                    if (item._id === 'điều hòa') icon = 'fas fa-snowflake text-info';
+                    if (item._id === 'đèn' || item._id === 'đèn 2' || item._id === 'đèn 3') icon = 'fas fa-lightbulb text-warning';
+
+                    const li = `
+                        <li class="list-group-item" data-device="${item._id}">
+                            <span><i class="${icon} me-2"></i> ${item._id.charAt(0).toUpperCase() + item._id.slice(1)}</span>
+                            <span class="badge bg-primary rounded-pill">${item.count} lần</span>
+                        </li>`;
+                    list.append(li);
+                });
+
+            } catch (error) {
+                console.error('Lỗi khi tải thống kê bật tắt:', error);
+                $('#device-toggle-list').empty().append('<li class="list-group-item text-danger">Lỗi khi tải dữ liệu.</li>');
+            }
+        }
+
+        // === API: Thống kê vượt ngưỡng ===
+        async function fetchThresholdStats() {
+            const temp = $('#threshold-temp').val();
+            const humi = $('#threshold-humi').val();
+            const light = $('#threshold-light').val();
+            const startDate = $('#filter-start-date').val();
+            const endDate = $('#filter-end-date').val();
+
+            let url = `/api/stats/thresholds?temp_gt=${temp}&humi_gt=${humi}&light_gt=${light}`;
+            if (startDate) url += `&startDate=${startDate}`;
+            if (endDate) url += `&endDate=${endDate}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                $('#temp-count').text(data.tempCount);
+                $('#humi-count').text(data.humiCount);
+                $('#light-count').text(data.lightCount);
+
+            } catch (error) {
+                console.error('Lỗi khi tải thống kê ngưỡng:', error);
+                $('#temp-count').text('Lỗi');
+                $('#humi-count').text('Lỗi');
+                $('#light-count').text('Lỗi');
+            }
+        }
+
+        function areDateFiltersActive() {
+            return $('#filter-start-date').val() !== '' || $('#filter-end-date').val() !== '';
+        }
+
+        // === MAIN LOGIC (CẬP NHẬT) ===
+        $(document).ready(function () {
+            
+            // 1. Tải cài đặt (ngưỡng và ngày/giờ) từ DB
+            loadSettings().then(() => {
+                // 2. Tải thống kê với các giá trị đã lưu
+                fetchToggleStats();
+                fetchThresholdStats();
+            });
+
+            // Gán sự kiện cho nút "Lưu & Cập nhật"
+            $('#btn-update-stats').on('click', async () => {
+                await saveSettings(); // Lưu cài đặt (ngưỡng + ngày) vào DB
+                fetchToggleStats();   
+                fetchThresholdStats();
+            });
+
+            // Gán sự kiện cho nút "Xóa ngày"
+            $('#btn-clear-dates').on('click', async () => {
+                await clearDatesAndSave(); // Xóa giá trị và LƯU NGAY vào DB
+                fetchToggleStats();   
+                fetchThresholdStats();
+            });
+            
+            // Tự động cập nhật số lần vượt ngưỡng (Socket)
+            socket.on('newSensorData', (data) => {
+                if (!areDateFiltersActive()) {
+                    const temp_thresh = parseFloat($('#threshold-temp').val());
+                    if (data.temperature > temp_thresh) {
+                        const currentCount = parseInt($('#temp-count').text()) || 0;
+                        $('#temp-count').text(currentCount + 1);
+                    }
+                    const humi_thresh = parseFloat($('#threshold-humi').val());
+                    if (data.humidity > humi_thresh) {
+                        const currentCount = parseInt($('#humi-count').text()) || 0;
+                        $('#humi-count').text(currentCount + 1);
+                    }
+                    const light_thresh = parseFloat($('#threshold-light').val());
+                    if (data.light > light_thresh) {
+                        const currentCount = parseInt($('#light-count').text()) || 0;
+                        $('#light-count').text(currentCount + 1);
+                    }
+                }
+            });
+
+            // Tự động cập nhật thống kê Bật/Tắt (Socket)
+            socket.on('statsToggleUpdate', () => {
+                console.log('Nhận được cập nhật toggle stats, đang tải lại...');
+                fetchToggleStats();
+            });
+
+        });
+    </script>
+  <script src="/js/auth-ui.js"></script>
+</body>
+</html>
