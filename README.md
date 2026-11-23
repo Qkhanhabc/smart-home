@@ -1,127 +1,134 @@
-# IoT IR AC Hybrid (Semantic + Raw Fallback)
+# Smart Home ESP32-S3 + IoT Dashboard
 
-ESP32-S3 firmware combining **IRremoteESP8266 `IRac`** (synthetic AC frames) with **raw replay fallback**, inspired by **Sensibo Sky** pairing (minimal remote presses).
+Dự án điều khiển nhà thông minh gồm firmware ESP32-S3, điều khiển máy lạnh bằng hồng ngoại, cảm biến, relay/quạt, website Node.js và MQTT. Hướng dẫn này dành cho người mới tải dự án về máy.
 
-## Why this folder exists
+> **Bảo mật:** Trước khi nạp firmware, hãy tự điền Wi-Fi và MQTT trong `config.h` của sketch bạn dùng. Không đưa mật khẩu thật lên GitHub. Backend dùng file `IOT-main/.env` riêng; file này đã được Git bỏ qua.
 
-The legacy [`iot_ir_airconditioner`](../iot_ir_airconditioner) replays learned raw waveforms per slot (`cool_22`, `pw_on`, …). That is 100% faithful but painful to onboard (15+ temperature learns per unit).
+## 1. Các thành phần
 
-This hybrid module:
+- **Firmware tích hợp:** `SmartHome_AC_Integrated/SmartHome_AC_Integrated.ino` — cảm biến, LCD, relay, LED, cảnh báo khói, IR máy lạnh và MQTT.
+- **Firmware IR độc lập:** `iot_ir_ac_hybrid.ino` ở thư mục gốc — gateway IR/MQTT, không phải sketch Smart Home đầy đủ.
+- **Sketch thử IR:** `IR_Raw_AC_Test/IR_Raw_AC_Test.ino`.
+- **Web/API backend:** `IOT-main/` — dashboard, đăng nhập, dữ liệu cảm biến, điều khiển và tự động hóa.
 
-1. **Pairing (2 frames)** — user presses ON then OFF (or ON twice with different temp)
-2. **Protocol probe** — tries `IRac::decodeToState` across common AC vendors
-3. **Semantic mode** — if probe succeeds, Hub sets `ac_temp=25` without learning `cool_25`
-4. **Raw fallback** — if probe fails (e.g. Sharp `UNKNOWN`), stores `pw_on` / `pw_of` and optional `learn cool_XX`
+Nếu bạn muốn chạy toàn bộ hệ thống trong ví dụ dây nối dưới đây, hãy bắt đầu từ firmware tích hợp.
 
-## Architecture
+## 2. Phần cứng và nối dây
 
-```
-                    ┌─────────────────┐
-  Hub downlink ───► │  AcHybridDriver │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┴──────────────┐
-              ▼                             ▼
-     AcSemanticDriver (IRac)        Raw replay (NVS slots)
-              │                             │
-              └──────────────┬──────────────┘
-                             ▼
-                      IrTransport (TX/RX)
-```
+Firmware tích hợp đang dùng các chân sau (tên GPIO trên ESP32-S3):
 
-### Onboarding FSM (`ac_onboarding`)
+| Linh kiện | GPIO |
+|---|---:|
+| DHT11 | 4 |
+| Thu IR / phát IR | 17 / 22 |
+| Relay quạt | 14 |
+| MQ-2 (ngõ analog) | 32 |
+| Còi báo / LED cảnh báo | 23 / 25 |
+| LED 1, 2, 3 | 19 / 21 / 18 |
+| Radar hiện diện | 35 |
+| Cảm biến ánh sáng | 34 |
+| LCD I2C SDA / SCL | 26 / 27 |
 
-| Step | User action | Firmware |
-|------|-------------|----------|
-| 1 | Press **POWER ON** | Capture frame A |
-| 2a | Press **POWER OFF** | Capture frame B → probe ON/OFF |
-| 2b | Change temp, press **ON** again | Capture frame B → probe temp delta |
-| 3 | — | `ac_protocol_probe` → semantic or raw profile saved to NVS |
+Dùng đúng điện áp và sơ đồ chân của module bạn có. Kiểm tra mức logic/nguồn của relay, LCD và cảm biến trước khi cấp điện; không cấp tải công suất trực tiếp từ GPIO.
 
-### Protocol probe (`ac_protocol_probe`)
+## 3. Chạy website và backend
 
-- Compares two frames with similar carrier structure (≥55% raw similarity)
-- Tries native `decode_type` then forces ~30 common AC protocols
-- **ON/OFF flow**: requires `stateA.power != stateB.power`
-- **ON×2 flow**: prefers `degrees` delta ≥ 1°C (helps infer temp encoding)
-- Confidence ≥ `AC_PROBE_MIN_CONFIDENCE` (70) → **semantic** profile
-- Else if frames differ in predictable cells → **raw fallback**
+Cần cài Node.js, npm, MongoDB và có tài khoản MQTT broker (ví dụ EMQX). Mở terminal tại thư mục dự án rồi chạy:
 
-## Sensibo-style approach — assessment
-
-**Good fit for IoT Hub:**
-
-- Onboarding UX: 2 button presses vs 15+ temperature learns
-- When `IRac` recognizes the remote (Daikin, Mitsubishi, many Sharp models), full climate control is immediate
-- Raw fallback keeps unknown remotes working (your current Sharp `UNKNOWN` case)
-
-**Limits (be aware):**
-
-- Not magic: if library cannot decode the remote, you still need raw slots for each temperature
-- `ON×2` temp inference only works when probe finds semantic decode — not bit-level synthesis from diff alone (future work)
-- Enabling many `DECODE_*` AC protocols increases flash ~50–150 KB — enable only what you need in IRremoteESP8266 config
-
-## Hardware
-
-Same as [`iot_ir_airconditioner`](../iot_ir_airconditioner): ESP32-S3 Super Mini, TSOP1738 GPIO4, IR LED GPIO5.
-
-## Libraries
-
-- [IRremoteESP8266](https://github.com/crankyoldgit/IRremoteESP8266) v2.8.6+
-- `dtg` from [`firmware/libraries/dtg`](../libraries/dtg)
-
-### IRremote build tip
-
-In `IRremoteESP8266.h` (or project override), keep AC decoders enabled for brands you deploy. Comment out unused protocols to save flash.
-
-## Hub datastreams
-
-| streamId | Values | Notes |
-|----------|--------|-------|
-| `ac_pair` | Any value (uses fixed 4-step flow) | Starts pairing: ON -> TEMP UP -> TEMP DOWN -> OFF |
-| `ac_power` | 0/1 | Works in both modes |
-| `ac_mode` | 0–3 | Semantic preferred |
-| `ac_temp` | 16–30 | Semantic: no per-slot learn |
-| `ac_fan` | 0–3 | Semantic sets absolute fan |
-| `ac_profile_mode` | tele 1=semantic, 2=raw | Uplink |
-| `learn_slot` | string e.g. `cool_25` | Raw fallback only |
-
-## Serial commands
-
-```
-pair          # 4-step: ON, TEMP UP, TEMP DOWN, OFF
-status        # show NVS profile
-unpair        # clear profile
-learn cool_25 # raw fallback slot capture
-power on|off  # test TX
-wifi_clear    # erase DTG Wi-Fi NVS
+```sh
+cd IOT-main
+npm install
 ```
 
-## Module map
+Tạo file `.env` từ mẫu:
 
-| File | Role |
-|------|------|
-| `ir_transport` | Low-level IRrecv/IRsend, echo guard |
-| `ac_ir_frame` | Frame struct, similarity / diff helpers |
-| `ac_protocol_probe` | Two-frame vendor inference |
-| `ac_profile` | NVS device profile |
-| `ac_raw_store` | NVS raw slots |
-| `ac_semantic_driver` | IRac send/decode wrapper |
-| `ac_hybrid_driver` | Routes semantic vs raw |
-| `ac_onboarding` | Pairing state machine |
-| `ac_mqtt_handler` | Hub downlink + passive sync |
+```sh
+# Windows PowerShell
+Copy-Item .env.example .env
 
-## Migration from `iot_ir_airconditioner`
+# macOS/Linux
+cp .env.example .env
+```
 
-1. Flash `iot_ir_ac_hybrid` on new gateways
-2. Run `pair` once per site
-3. If semantic: remove manual `cool_XX` learns from ops runbook
-4. If raw fallback: existing learned slots can be re-imported via `learn` serial command
+Mở `IOT-main/.env` và cấu hình:
 
-## Next steps (future)
+- `MONGODB_URI`: địa chỉ MongoDB, mặc định dùng MongoDB local.
+- `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`: thông tin broker.
+- `PORT`: cổng website, mặc định `3000`.
+- `PUBLIC_BASE_URL`: để `http://localhost:3000` khi chạy local.
 
-- Hub UI wizard for `ac_pair` flow with progress states
-- Bit-diff template synthesis for UNKNOWN protocols (infer temp from ON×2 without full IRac)
-- Per-project protocol allowlist to trim flash
-- Auto-test TX after probe (verify AC beeps)
-"# SmartIR_ESP32S3_Firmware" 
+Giá trị mẫu trong `.env.example` chỉ là ví dụ; nhập đúng endpoint và tài khoản do bạn quản lý/cấp. Không chia sẻ file `.env`.
+
+Khởi động backend:
+
+```sh
+npm start
+```
+
+Mở [http://localhost:3000](http://localhost:3000), đăng ký tài khoản rồi đăng nhập. MongoDB và backend cần tiếp tục chạy trong lúc sử dụng dashboard.
+
+### Email cảnh báo và khôi phục mật khẩu (tùy chọn)
+
+Cấu hình SMTP theo `IOT-main/.env.mail.example`, chép các biến cần dùng vào `IOT-main/.env`, rồi khởi động lại backend. Trong dashboard, mở trang cảnh báo để bật email và đặt địa chỉ nhận. Không dùng mật khẩu đăng nhập email thường; hãy dùng thông tin SMTP/app password do nhà cung cấp email cấp.
+
+### Trợ lý cục bộ (tùy chọn)
+
+Trợ lý website dùng Ollama trên cùng máy với backend. Cài Ollama, tải model đã cấu hình trong `.env.example` (mặc định `qwen2.5:3b`) bằng `ollama pull qwen2.5:3b`, mở Ollama và khởi động lại backend. Xem `IOT-main/LOCAL_ASSISTANT.md` để biết dữ liệu nào được gửi cho model cục bộ.
+
+## 4. Cài và nạp firmware Smart Home tích hợp
+
+1. Cài Arduino IDE và board package ESP32 của Espressif; chọn đúng bo ESP32-S3 đang dùng.
+2. Cài các thư viện Arduino: **IRremoteESP8266** (2.8.6 trở lên), **PubSubClient**, **LiquidCrystal_I2C**, **DHT sensor library** (Adafruit) và **Adafruit Unified Sensor** nếu Library Manager yêu cầu.
+3. Mở sketch `SmartHome_AC_Integrated/SmartHome_AC_Integrated.ino` trong Arduino IDE. Giữ các file `.cpp`, `.h` trong cùng thư mục sketch.
+4. Mở `SmartHome_AC_Integrated/config.h`, nhập Wi-Fi và MQTT broker của bạn vào `WIFI_SSID`, `WIFI_PASS`, `MQTT_HOST`, `MQTT_USER`, `MQTT_PASS`. Giữ nguyên cổng TLS `8883` và CA certificate nếu broker của bạn yêu cầu cấu hình mẫu này; nếu broker khác, cập nhật endpoint/chứng chỉ tương ứng.
+5. Chọn board, cổng COM và nạp firmware. Mở Serial Monitor ở **115200 baud**.
+6. Kiểm tra log Wi-Fi/MQTT và trạng thái thiết bị. Backend và ESP32 phải dùng cùng MQTT broker, thông tin đăng nhập và topic để website nhận dữ liệu/điều khiển thiết bị.
+
+> Thư mục gốc có `config.h` riêng cho sketch `iot_ir_ac_hybrid.ino`. Nếu dùng firmware IR độc lập, hãy cập nhật file cấu hình ở thư mục gốc thay vì file cấu hình của sketch tích hợp.
+
+## 5. Ghép điều khiển máy lạnh
+
+Đưa remote máy lạnh về phía mắt thu IR. Trong Serial Monitor, nhập `pair`, sau đó bấm từng nút theo hướng dẫn hiện trên log: **Power ON**, **Temp Up**, **Temp Down**, **Power OFF**. Mỗi bước chỉ bấm một lần và chờ firmware nhận tín hiệu. Hồ sơ ghép được lưu trong NVS của ESP32 nên vẫn còn sau khi khởi động lại.
+
+Các lệnh Serial thường dùng:
+
+| Lệnh | Tác dụng |
+|---|---|
+| `pair` | Bắt đầu ghép remote máy lạnh |
+| `status` | Xem trạng thái/hồ sơ IR đã lưu |
+| `unpair` | Xóa hồ sơ ghép |
+| `power on`, `power off` | Bật/tắt máy lạnh |
+| `temp 26` | Yêu cầu làm lạnh ở 26°C (16–30°C) |
+| `learn cool_26` | Học một phím nhiệt độ cho chế độ raw fallback |
+| `F` | Bật/tắt relay quạt |
+| `1`, `2`, `3` | Bật/tắt từng LED |
+
+Firmware ưu tiên điều khiển semantic nếu nhận diện được giao thức máy lạnh. Với remote không giải mã được, firmware dùng raw fallback; cần học từng mức nhiệt muốn dùng, ví dụ `learn cool_26`. Xem `SmartHome_AC_Integrated/README.md` để biết thêm về ghép IR, MQTT và tự động hóa.
+
+## 6. Website và MQTT
+
+Khi backend, broker và ESP32 đã kết nối:
+
+- Dashboard hiển thị cảm biến và trạng thái thiết bị.
+- Trang máy lạnh gửi lệnh bật/tắt, chế độ, nhiệt độ và tốc độ quạt.
+- Trang tự động hóa dùng dữ liệu cảm biến để điều khiển theo quy tắc.
+- Trang cảnh báo cấu hình thông báo khói qua email.
+
+Các MQTT topic được khai báo trong `IOT-main/config/mqttTopics.js` và firmware `config.h`. Mặc định gồm `smarthome/sensors/state`, `smarthome/ac/cmd`, `smarthome/ac/state`, `smarthome/device/cmd` và `smarthome/device/state`. Nếu đổi topic hoặc broker, cập nhật cả backend và firmware.
+
+## 7. Sự cố thường gặp
+
+- **Website không mở:** kiểm tra backend đã chạy chưa, cổng `3000` có bị ứng dụng khác dùng không.
+- **Không đăng nhập được hoặc dữ liệu không lưu:** kiểm tra MongoDB đang chạy và `MONGODB_URI` chính xác.
+- **ESP32 không lên MQTT:** kiểm tra Wi-Fi, host/port, username/password, TLS và CA certificate. Backend và ESP32 phải vào cùng broker.
+- **Dashboard không thấy ESP32:** kiểm tra MQTT topics ở hai phía và xem Serial Monitor để biết thiết bị đã kết nối chưa.
+- **Máy lạnh không phản hồi:** ghép lại với mắt thu hướng về remote; thử `status`. Nếu profile ở raw fallback, học slot đúng nhiệt độ trước khi gửi nhiệt độ đó.
+- **Trợ lý báo không khả dụng:** chạy Ollama và kiểm tra model đã tải.
+
+## 8. Bảo mật và triển khai
+
+- Không commit `.env`, mật khẩu Wi-Fi/MQTT/SMTP, khóa API hoặc thông tin broker riêng.
+- Các file `config.h` chỉ dùng placeholder trong bản chia sẻ; điền thông tin riêng trên máy của bạn.
+- Đổi mật khẩu Wi-Fi/MQTT nếu từng bị đưa lên repo công khai hoặc chia sẻ ngoài ý muốn. Xóa giá trị khỏi file hiện tại không xóa chúng khỏi các commit cũ.
+- Website này hướng dẫn chạy local. Trước khi mở ra Internet, cần tự cấu hình HTTPS, xác thực/kiểm soát truy cập, CORS, MongoDB và MQTT theo môi trường triển khai.
+- Tài liệu firmware tích hợp ghi rõ bản tích hợp chưa được xác nhận build/test trên phần cứng; hãy biên dịch và kiểm tra an toàn trước khi triển khai thực tế.

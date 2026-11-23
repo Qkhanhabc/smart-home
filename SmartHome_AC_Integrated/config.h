@@ -12,14 +12,14 @@
 
 #define DTG_MQTT_BUFFER_CORE 2048
 
-static const char *WIFI_SSID = "Nha 211 - P602";
-static const char *WIFI_PASS = "211yenxa";
+static const char *WIFI_SSID = "YOUR_WIFI_NAME";
+static const char *WIFI_PASS = "YOUR_WIFI_PASSWORD";
 static const char *PROJECT_ID = "your-project-id";
 static const char *GW_ALIAS = "your-gateway-alias";
 static const char *MQTT_HOST = "r3c6ccbf.ala.asia-southeast1.emqxsl.com";
 static const uint16_t MQTT_TLS_PORT = 8883;
 static const char *MQTT_USER = "smarthome";
-static const char *MQTT_PASS = "123456789";
+static const char *MQTT_PASS = "YOUR_MQTT_PASSWORD";
 static const char *MQTT_CLIENT_ID = "smarthome-esp32s3-01";
 
 // Node.js website backend connects to the broker over MQTT/TLS on port 8883.
