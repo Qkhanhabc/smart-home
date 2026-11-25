@@ -1,6 +1,7 @@
 const mqttService = require('../services/mqttService');
 const AcRawSlot = require('../models/AcRawSlot');
 const topics = require('../config/mqttTopics');
+const deviceCommandService = require('../services/deviceCommandService');
 
 function publish(topic, payload, res) {
   if (!mqttService.client.connected) {
@@ -57,7 +58,7 @@ exports.deleteRawSlot = async (req, res) => {
   }
 };
 
-exports.sendCommand = (req, res) => {
+exports.sendCommand = async (req, res) => {
   const command = req.body || {};
   const allowedKeys = new Set(['pair', 'power', 'mode', 'temp', 'fan', 'slot']);
   if (!Object.keys(command).length || Object.keys(command).some((key) => !allowedKeys.has(key))) {
@@ -81,7 +82,14 @@ exports.sendCommand = (req, res) => {
   if (command.slot !== undefined && (typeof command.slot !== 'string' || !/^[a-zA-Z0-9_-]{1,16}$/.test(command.slot))) {
     return res.status(400).json({ message: 'Tên raw slot chỉ nhận chữ, số, gạch dưới hoặc gạch ngang; tối đa 16 ký tự' });
   }
-  return publish(topics.acCommand, command, res);
+  if (command.pair !== undefined || command.slot !== undefined) return publish(topics.acCommand, command, res);
+  try {
+    const result = await deviceCommandService.controlAirConditioner(command, { source: 'dashboard', userId: req.authUser._id });
+    return res.status(result.status === 'sent_unconfirmed' ? 202 : 200).json(result);
+  } catch (error) {
+    const status = ['MQTT_OFFLINE', 'ESP32_OFFLINE'].includes(error.code) ? 503 : 400;
+    return res.status(status).json({ message: error.message, code: error.code });
+  }
 };
 
 exports.learnRawSlot = (req, res) => {

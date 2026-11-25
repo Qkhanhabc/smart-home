@@ -1,23 +1,54 @@
-# Local website assistant
+# AI Smart Home Assistant
 
-The website assistant uses Ollama on the same computer as the Node backend. Sensor readings, recent anomaly events, and current device states are sent only to the local Ollama service at `127.0.0.1:11434`; the assistant route does not call OpenAI or other hosted model APIs. Chat messages are kept in browser memory for the current tab and are not written to MongoDB. The assistant has no device-control tools.
+Trợ lý dùng Ollama trên cùng máy với backend và có Tool Calling. LLM không truy cập trực tiếp GPIO, MQTT, MongoDB hay shell. Mọi thao tác đi qua danh sách tool cố định, được backend xác thực trước khi đọc dữ liệu hoặc gửi lệnh.
 
-## First-time setup on Windows
+## Cài đặt
 
-1. Install Ollama from [ollama.com/download/windows](https://ollama.com/download/windows) and start the Ollama app.
-2. Open PowerShell and download the configured model:
+1. Cài và mở Ollama.
+2. Tải model hỗ trợ tool calling:
 
    ```powershell
    ollama pull qwen2.5:3b
    ```
 
-3. Optionally set `OLLAMA_MODEL=qwen2.5:3b` in `.env`. This is the backend default when the variable is unset.
-4. Start or restart the Node backend, sign in to the website, and open the floating assistant at the lower right.
+3. Trong `.env`, giữ hoặc sửa:
 
-The first response can take longer while the model loads. Change `OLLAMA_MODEL` to another model installed in Ollama if this model does not fit the computer's available memory. The backend does not download models automatically.
+   ```dotenv
+   AI_PROVIDER=ollama
+   OLLAMA_BASE_URL=http://127.0.0.1:11434
+   OLLAMA_MODEL=qwen2.5:3b
+   AI_TIMEOUT_MS=120000
+   ```
 
-## Data scope
+4. Khởi động lại backend. Chatbot xuất hiện ở góc dưới bên phải các trang sau khi đăng nhập.
 
-For each question, the backend provides the model with the latest stored sensor sample, summaries of up to 30 recent samples, up to 10 recent individual samples, the latest five anomaly events from the last seven days, and current fan/AC/light states. It does not include account credentials, email, or password data. The request is limited to 12 messages and 1,200 characters per message, with a per-account rate limit. Questions are answered from that context; the model cannot send control commands.
+## Khả năng
 
-If the assistant reports that Ollama is unavailable, make sure the Ollama app is running and that the configured model has been pulled.
+- Đọc dữ liệu cảm biến và trạng thái kết nối mới nhất từ MQTT.
+- Tính min/max/trung bình từ MongoDB thay vì để LLM tự tính hoặc tự tạo số liệu.
+- Điều khiển quạt, ba LED và điều hòa qua MQTT.
+- Chờ trạng thái quạt/LED do ESP32 báo về trước khi nói đã xác nhận.
+- Với điều hòa IR một chiều, luôn phân biệt “ESP32 đã xử lý lệnh IR” với trạng thái vật lý chưa xác minh.
+- Tạo quy tắc, lịch hẹn và kích hoạt kịch bản sau khi người dùng bấm xác nhận.
+- Dùng tối đa 12 tin nhắn gần nhất trong tab để hiểu ngữ cảnh liên tiếp.
+
+## Ánh xạ phòng
+
+Source hiện tại chỉ xác nhận `fan`, `ac`, `led1`, `led2`, `led3`; chưa xác nhận LED nào thuộc phòng nào. Không nên để AI đoán từ ảnh mô hình. Sau khi kiểm tra dây thực tế, khai báo trong `.env`, ví dụ:
+
+```dotenv
+DEVICE_LABELS_JSON={"led1":{"label":"Đèn phòng khách","room":"phòng khách","aliases":["đèn khách"]}}
+```
+
+## An toàn
+
+- Cảnh báo MQ-2, còi và LED chạy độc lập trong firmware, không phụ thuộc AI.
+- AI/automation/lịch/kịch bản bị chặn bật quạt khi `smokeAlarm=true`.
+- Lệnh dài hạn và kịch bản nhiều thiết bị cần xác nhận trong giao diện.
+- Tool chỉ chấp nhận thiết bị, mode, nhiệt độ và toán tử trong allowlist.
+- Chatbot có giới hạn 12 yêu cầu/phút cho mỗi tài khoản.
+- Nếu ESP32 offline hoặc dữ liệu quá 10 giây, UI và tool đánh dấu dữ liệu không còn mới.
+
+## Dữ liệu hội thoại
+
+Tin nhắn được giữ trong bộ nhớ của tab trình duyệt và gửi tới Ollama cục bộ. Backend không lưu nội dung chat vào MongoDB. Các cấu trúc automation đã được xác nhận mới được lưu.

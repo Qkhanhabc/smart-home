@@ -73,7 +73,11 @@ Cấu hình SMTP theo `IOT-main/.env.mail.example`, chép các biến cần dùn
 
 ### Trợ lý cục bộ (tùy chọn)
 
-Trợ lý website dùng Ollama trên cùng máy với backend. Cài Ollama, tải model đã cấu hình trong `.env.example` (mặc định `qwen2.5:3b`) bằng `ollama pull qwen2.5:3b`, mở Ollama và khởi động lại backend. Xem `IOT-main/LOCAL_ASSISTANT.md` để biết dữ liệu nào được gửi cho model cục bộ.
+Trợ lý website dùng Ollama trên cùng máy với backend. Cài Ollama, tải model đã cấu hình trong `.env.example` (mặc định `qwen2.5:3b`) bằng `ollama pull qwen2.5:3b`, mở Ollama và khởi động lại backend.
+
+Trợ lý sử dụng Tool Calling để đọc dữ liệu thật, điều khiển quạt/đèn/điều hòa qua MQTT, tạo quy tắc, lịch hẹn và kịch bản. LLM không truy cập trực tiếp GPIO/MQTT/DB. Automation, lịch hẹn và kịch bản cần người dùng xác nhận trước khi lưu hoặc chạy. Xem `IOT-main/LOCAL_ASSISTANT.md` và `docs/AI_CHATBOT_ARCHITECTURE.md`.
+
+Source chưa xác nhận đèn nào thuộc phòng nào. Sau khi kiểm tra dây thật, có thể cấu hình nhãn/phòng bằng `DEVICE_LABELS_JSON` trong `.env`; chatbot sẽ hỏi lại thay vì tự đoán phòng.
 
 ## 4. Cài và nạp firmware Smart Home tích hợp
 
@@ -124,6 +128,9 @@ Các MQTT topic được khai báo trong `IOT-main/config/mqttTopics.js` và fir
 - **Dashboard không thấy ESP32:** kiểm tra MQTT topics ở hai phía và xem Serial Monitor để biết thiết bị đã kết nối chưa.
 - **Máy lạnh không phản hồi:** ghép lại với mắt thu hướng về remote; thử `status`. Nếu profile ở raw fallback, học slot đúng nhiệt độ trước khi gửi nhiệt độ đó.
 - **Trợ lý báo không khả dụng:** chạy Ollama và kiểm tra model đã tải.
+- **AI không điều khiển khi ESP32 offline:** đây là hành vi an toàn; kiểm tra heartbeat `smarthome/device/status`, Wi-Fi và MQTT.
+- **Lệnh điều hòa báo chưa xác minh vật lý:** IR hiện là một chiều; ESP32 chỉ xác nhận đã xử lý/phát lệnh.
+- **AI không hiểu “đèn phòng khách”:** cấu hình ánh xạ phòng đã kiểm tra thực tế bằng `DEVICE_LABELS_JSON`.
 
 ## 8. Bảo mật và triển khai
 

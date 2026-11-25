@@ -1,7 +1,6 @@
 // controllers/controlController.js
-const mqttService = require('../services/mqttService');
+const deviceCommandService = require('../services/deviceCommandService');
 const ActionData = require('../models/ActionData');
-const topics = require('../config/mqttTopics');
 
 exports.controlDevice = async (req, res) => {
   const { device, action } = req.body;
@@ -9,39 +8,13 @@ exports.controlDevice = async (req, res) => {
     return res.status(400).json({ message: 'Action phải là on hoặc off' });
   }
 
-  let topic;
-  let payload;
-  const power = String(action).toLowerCase() === 'on' ? 1 : 0;
-  if (device === 'điều hòa' || device === 'ac') {
-    topic = topics.acCommand;
-    payload = JSON.stringify({ power });
-  } else if (device === 'quạt' || device === 'fan') {
-    topic = topics.deviceCommand;
-    payload = JSON.stringify({ device: 'fan', power });
-  } else if (device === 'đèn' || device === 'led1') {
-    topic = topics.deviceCommand;
-    payload = JSON.stringify({ device: 'led1', power });
-  } else if (device === 'đèn 2' || device === 'led2') {
-    topic = topics.deviceCommand;
-    payload = JSON.stringify({ device: 'led2', power });
-  } else if (device === 'đèn 3' || device === 'led3') {
-    topic = topics.deviceCommand;
-    payload = JSON.stringify({ device: 'led3', power });
-  } else {
-    return res.status(400).json({ message: 'Thiết bị không hợp lệ' });
+  try {
+    const result = await deviceCommandService.controlDevice({ device, power: String(action).toLowerCase() === 'on' }, { source: 'dashboard', userId: req.authUser._id });
+    return res.status(result.status === 'sent_unconfirmed' ? 202 : 200).json({ ...result, message: result.message || `Đã xử lý lệnh ${action} cho ${device}` });
+  } catch (error) {
+    const status = ['MQTT_OFFLINE', 'ESP32_OFFLINE'].includes(error.code) ? 503 : error.code === 'SAFETY_BLOCK' ? 409 : 400;
+    return res.status(status).json({ message: error.message, code: error.code });
   }
-
-  if (!mqttService.client.connected) {
-    return res.status(503).json({ message: 'Backend chưa kết nối MQTT broker' });
-  }
-
-  mqttService.client.publish(topic, payload, { qos: 1, retain: false }, (err) => {
-    if (err) {
-      console.error('Lỗi khi gửi lệnh MQTT:', err);
-      return res.status(500).json({ message: 'Lỗi khi gửi lệnh đến MQTT' });
-    }
-    res.json({ message: `Đã gửi lệnh ${action} cho ${device}`, pending: true });
-  });
 };
 
 exports.getActionData = async (req, res) => {

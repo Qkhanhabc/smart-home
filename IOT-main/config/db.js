@@ -6,7 +6,10 @@ dotenv.config();
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
+    mongoose.set('strictQuery', true);
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: Number(process.env.MONGODB_TIMEOUT_MS || 10000)
+    });
     console.log('Kết nối MongoDB thành công');
   } catch (error) {
     console.error('Lỗi kết nối MongoDB:', error);

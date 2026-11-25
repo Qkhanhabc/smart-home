@@ -67,6 +67,16 @@
       </div>
     </div>
     <div class="d-flex justify-content-end mt-3"><button id="save" class="btn btn-primary"><i class="fa-solid fa-floppy-disk me-2"></i>Lưu cài đặt</button></div>
+    <section class="card auto-card mt-4"><div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <div><h2 class="h5 mb-1"><i class="fa-solid fa-robot me-2 text-primary"></i>Quy tắc do AI tạo</h2><p class="small text-secondary mb-0">Các quy tắc này chạy độc lập trên backend sau khi bạn xác nhận trong chatbot.</p></div>
+        <button id="reload-rules" class="btn btn-sm btn-outline-primary">Làm mới</button>
+      </div>
+      <div id="rule-list" class="vstack gap-2"><div class="text-secondary small">Đang tải…</div></div>
+      <hr>
+      <h3 class="h6"><i class="fa-regular fa-clock me-2"></i>Tác vụ hẹn giờ</h3>
+      <div id="schedule-list" class="vstack gap-2"><div class="text-secondary small">Đang tải…</div></div>
+    </div></section>
   </main>
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -100,8 +110,42 @@
       } catch (error) { feedback(error.message, false); }
     });
     socket.on('deviceConnectionUpdate', (status) => { $('connection').textContent = status.online ? 'ESP32 online' : 'ESP32 offline'; $('connection').className = `badge ${status.online ? 'text-bg-success' : 'text-bg-secondary'}`; });
-    socket.on('automationAction', (action) => feedback(action.type === 'cooling' ? `Tự động làm mát: ${action.enabled ? 'đã bật' : 'đã tắt'}.` : `Tự động đèn: ${action.enabled ? 'đã bật' : 'đã tắt'}.`));
+    socket.on('automationAction', (action) => {
+      if (action.name) { feedback(`Đã chạy quy tắc: ${action.name}.`); loadAdvancedAutomations(); }
+      else feedback(action.type === 'cooling' ? `Tự động làm mát: ${action.enabled ? 'đã bật' : 'đã tắt'}.` : `Tự động đèn: ${action.enabled ? 'đã bật' : 'đã tắt'}.`);
+    });
+    function makeRow(title, detail, badge, onDelete) {
+      const row = document.createElement('div'); row.className = 'border rounded-3 p-3 d-flex justify-content-between align-items-center gap-3';
+      const text = document.createElement('div'); const strong = document.createElement('strong'); strong.textContent = title;
+      const small = document.createElement('div'); small.className = 'small text-secondary'; small.textContent = detail; text.append(strong, small);
+      const right = document.createElement('div'); right.className = 'd-flex align-items-center gap-2';
+      const state = document.createElement('span'); state.className = `badge ${badge === 'Bật' || badge === 'pending' ? 'text-bg-success' : 'text-bg-secondary'}`; state.textContent = badge; right.appendChild(state);
+      if (onDelete) { const button = document.createElement('button'); button.className = 'btn btn-sm btn-outline-danger'; button.textContent = 'Xóa'; button.addEventListener('click', onDelete); right.appendChild(button); }
+      row.append(text, right); return row;
+    }
+    async function loadAdvancedAutomations() {
+      try {
+        const [ruleResponse, scheduleResponse] = await Promise.all([fetch('/api/automations/rules'), fetch('/api/automations/schedules')]);
+        if (!ruleResponse.ok || !scheduleResponse.ok) throw new Error('Không tải được automation nâng cao.');
+        const { rules } = await ruleResponse.json(); const { schedules } = await scheduleResponse.json();
+        $('rule-list').replaceChildren();
+        if (!rules.length) $('rule-list').append(Object.assign(document.createElement('div'), { className: 'small text-secondary', textContent: 'Chưa có quy tắc AI.' }));
+        rules.forEach((rule) => $('rule-list').append(makeRow(rule.name, rule.trigger.type === 'time' ? `Hằng ngày lúc ${rule.trigger.time}` : `${rule.trigger.metric} ${rule.trigger.operator} ${rule.trigger.value}`, rule.enabled ? 'Bật' : 'Tắt', async () => {
+          if (!confirm(`Xóa quy tắc “${rule.name}”?`)) return;
+          const response = await fetch(`/api/automations/rules/${rule._id}`, { method: 'DELETE' }); if (!response.ok) return feedback('Không xóa được quy tắc.', false); loadAdvancedAutomations();
+        })));
+        $('schedule-list').replaceChildren();
+        const visible = schedules.filter((item) => ['pending', 'running'].includes(item.status));
+        if (!visible.length) $('schedule-list').append(Object.assign(document.createElement('div'), { className: 'small text-secondary', textContent: 'Không có tác vụ đang chờ.' }));
+        visible.forEach((item) => $('schedule-list').append(makeRow(item.description, new Date(item.executeAt).toLocaleString('vi-VN'), item.status, async () => {
+          const response = await fetch(`/api/automations/schedules/${item._id}`, { method: 'DELETE' }); if (!response.ok) return feedback('Không hủy được tác vụ.', false); loadAdvancedAutomations();
+        })));
+      } catch (error) { feedback(error.message, false); }
+    }
+    $('reload-rules').addEventListener('click', loadAdvancedAutomations);
+    socket.on('scheduledActionUpdate', loadAdvancedAutomations);
     fetch('/api/settings').then((r) => r.json()).then(applySettings).catch((e) => feedback(e.message, false));
+    loadAdvancedAutomations();
   </script>
   <script src="/js/auth-ui.js"></script>
 </body>

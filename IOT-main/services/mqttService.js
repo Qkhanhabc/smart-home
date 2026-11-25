@@ -28,10 +28,14 @@ class MQTTService extends EventEmitter {
     super();
     this.ioInstance = null;
     this.currentDeviceStatus = { fan: 'OFF', ac: 'OFF', led1: 'OFF', led2: 'OFF', led3: 'OFF' };
+    this.desiredDeviceStatus = { fan: null, ac: null, led1: null, led2: null, led3: null };
+    this.pendingCommandMeta = {};
     this.statusInitialized = { fan: false, ac: false, led1: false, led2: false, led3: false };
     this.currentAcState = null;
     this.latestSensorData = null;
     this.isOnline = false;
+    this.lastDeviceSeenAt = null;
+    this.lastSensorReceivedAt = null;
     this.automationSettings = null;
     this.automationTargets = { cooling: false, light: null };
     this.lastSmokeAlarm = false;
@@ -73,6 +77,8 @@ class MQTTService extends EventEmitter {
   }
 
   async handleMessage(topic, text) {
+    this.lastDeviceSeenAt = new Date();
+    if (topic !== topics.deviceStatus) this.isOnline = true;
     if (topic === topics.sensorState) {
       await this.handleSensorState(text);
       return;
@@ -103,7 +109,7 @@ class MQTTService extends EventEmitter {
     }
     if (topic === topics.deviceStatus) {
       this.isOnline = text.trim().toLowerCase() === 'online';
-      const status = { online: this.isOnline };
+      const status = { online: this.isDeviceOnline(), lastSeenAt: this.lastDeviceSeenAt };
       if (this.ioInstance) this.ioInstance.emit('deviceConnectionUpdate', status);
       this.emit('deviceConnectionUpdate', status);
     }
@@ -124,6 +130,7 @@ class MQTTService extends EventEmitter {
       fanRelay: data.fan_relay ?? null,
       createdAt: new Date()
     };
+    this.lastSensorReceivedAt = formattedData.createdAt;
     this.latestSensorData = formattedData;
     if (this.ioInstance) this.ioInstance.emit('newSensorData', formattedData);
     this.emit('newSensorData', formattedData);
@@ -164,9 +171,10 @@ class MQTTService extends EventEmitter {
       if (!next) continue;
       const previous = this.currentDeviceStatus[key];
       if (!this.statusInitialized[key] || previous !== next) shouldEmit = true;
-      if (this.statusInitialized[key] && previous !== next) changed.push({ key, next });
+      if (this.statusInitialized[key] && previous !== next) changed.push({ key, next, meta: this.pendingCommandMeta[key] });
       this.currentDeviceStatus[key] = next;
       this.statusInitialized[key] = true;
+      if (this.desiredDeviceStatus[key] === next) this.desiredDeviceStatus[key] = null;
     }
 
     if (shouldEmit) {
@@ -174,10 +182,13 @@ class MQTTService extends EventEmitter {
       this.emit('deviceStatusUpdate', this.currentDeviceStatus);
     }
 
-    for (const { key, next } of changed) await this.recordAction(key, next);
+    for (const { key, next, meta } of changed) {
+      await this.recordAction(key, next, meta);
+      delete this.pendingCommandMeta[key];
+    }
   }
 
-  async recordAction(deviceKey, status) {
+  async recordAction(deviceKey, status, meta = {}) {
     const device = DEVICE_LABELS[deviceKey];
     if (!device) return;
     try {
@@ -186,7 +197,14 @@ class MQTTService extends EventEmitter {
         const oldestAction = await ActionData.findOne().sort({ time: 1 });
         if (oldestAction) await ActionData.deleteOne({ _id: oldestAction._id });
       }
-      await new ActionData({ device, status: status.toLowerCase() }).save();
+      await new ActionData({
+        deviceId: deviceKey,
+        device,
+        status: status.toLowerCase(),
+        source: meta?.source || 'physical',
+        commandId: meta?.commandId,
+        verification: meta?.verification || (deviceKey === 'ac' ? 'ir_command_only' : 'reported_by_esp32')
+      }).save();
       if (this.ioInstance) this.ioInstance.emit('statsToggleUpdate');
     } catch (error) {
       console.error('Lỗi lưu lịch sử thiết bị vào MongoDB:', error);
@@ -197,8 +215,39 @@ class MQTTService extends EventEmitter {
     return { ...this.currentDeviceStatus };
   }
 
+  getDesiredDeviceStatus() {
+    return { ...this.desiredDeviceStatus };
+  }
+
   getCurrentAcState() {
     return this.currentAcState ? { ...this.currentAcState } : null;
+  }
+
+  getLatestSensorData() {
+    return this.latestSensorData ? { ...this.latestSensorData } : null;
+  }
+
+  isDeviceOnline(maxAgeMs = 75000) {
+    if (!this.isOnline || !this.lastDeviceSeenAt) return false;
+    return Date.now() - this.lastDeviceSeenAt.getTime() <= maxAgeMs;
+  }
+
+  getSystemStatus() {
+    const sensorAgeMs = this.lastSensorReceivedAt ? Date.now() - this.lastSensorReceivedAt.getTime() : null;
+    return {
+      mqttConnected: Boolean(this.client.connected),
+      esp32Online: this.isDeviceOnline(),
+      lastDeviceSeenAt: this.lastDeviceSeenAt,
+      lastSensorAt: this.lastSensorReceivedAt,
+      sensorFresh: sensorAgeMs !== null && sensorAgeMs <= 10000,
+      sensorAgeSeconds: sensorAgeMs === null ? null : Math.round(sensorAgeMs / 1000)
+    };
+  }
+
+  markDesiredState(deviceKey, status, meta = {}) {
+    if (!Object.prototype.hasOwnProperty.call(this.desiredDeviceStatus, deviceKey)) return;
+    this.desiredDeviceStatus[deviceKey] = status;
+    this.pendingCommandMeta[deviceKey] = meta;
   }
 
   updateAutomationSettings(settings) {
@@ -233,7 +282,8 @@ class MQTTService extends EventEmitter {
     if (settings.autoCoolingEnabled && typeof sensor.person === 'boolean' && sensor.temperature !== null && Number.isFinite(Number(sensor.temperature))) {
       const threshold = Number(settings.autoTempThreshold ?? 30);
       const temp = Number(sensor.temperature);
-      const cooling = sensor.person && (this.automationTargets.cooling ? temp > threshold - 1 : temp >= threshold);
+      // Safety priority: no automatic ventilation/cooling while smoke/gas alarm is active.
+      const cooling = sensor.smokeAlarm !== true && sensor.person && (this.automationTargets.cooling ? temp > threshold - 1 : temp >= threshold);
       const mode = settings.autoCoolingMode || 'both';
       const previousMode = this.automationTargets.coolingMode;
       const modeChanged = !!previousMode && previousMode !== mode;
@@ -299,7 +349,7 @@ class MQTTService extends EventEmitter {
     this.ioInstance = io;
     io.on('connection', (socket) => {
       socket.emit('deviceStatusUpdate', this.getCurrentDeviceStatus());
-      socket.emit('deviceConnectionUpdate', { online: this.isOnline });
+      socket.emit('deviceConnectionUpdate', { online: this.isDeviceOnline(), lastSeenAt: this.lastDeviceSeenAt });
       if (this.currentAcState) socket.emit('acStateUpdate', this.currentAcState);
       if (this.latestSensorData) socket.emit('newSensorData', this.latestSensorData);
     });

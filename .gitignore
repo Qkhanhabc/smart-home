@@ -1,18 +1,14 @@
-# Secrets and local configuration
-.env
-.env.*
-!.env.example
-!.env.*.example
+# Backend secrets and generated dependencies
+IOT-main/.env
+IOT-main/node_modules/
+IOT-main/npm-debug.log*
 
-# Dependencies and generated output
-**/node_modules/
-**/dist/
-**/build/
-**/.pio/
-**/coverage/
-
-# Editor and OS files
+# IDE and operating-system files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local test output
+coverage/
+*.log

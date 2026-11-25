@@ -12,16 +12,21 @@ dotenv.config();
 
 // Khởi tạo ứng dụng Express
 const app = express();
+const allowedOrigins = [...new Set([
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  process.env.PUBLIC_BASE_URL
+].filter(Boolean))];
 
 // Cấu hình CORS
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'], // Cho phép cả hai origin
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Middleware để parse JSON
-app.use(express.json());
+app.use(express.json({ limit: '32kb' }));
 
 // Parse only the session cookie; credentials and session tokens stay out of localStorage.
 app.use((req, _res, next) => {
@@ -53,14 +58,11 @@ const server = http.createServer(app);
 // Khởi tạo Socket.io với CORS đã cấu hình
 const io = socketIo(server, {
   cors: {
-    origin: "*", // Bạn có thể thay đổi theo nhu cầu bảo mật
+    origin: allowedOrigins,
     methods: ["GET", "POST"]
   }
 });
 io.use(authController.authenticateSocket);
-
-// Kết nối tới MongoDB
-connectDB();
 
 // Import các routes
 const statusRoutes = require('./routes/statusRoutes');
@@ -73,6 +75,7 @@ const acRoutes = require('./routes/acRoutes');
 const alertRoutes = require('./routes/alertRoutes');
 const anomalyRoutes = require('./routes/anomalyRoutes');
 const assistantRoutes = require('./routes/assistantRoutes');
+const automationRoutes = require('./routes/automationRoutes');
 // Sử dụng các routes
 app.use('/api/status-data', statusRoutes);  // Cập nhật status cho các device ở index.html
 app.use('/api/sensor-data', sensorRoutes); // lấy dữ liệu cảm biến
@@ -84,16 +87,31 @@ app.use('/api/ac', acRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/anomalies', anomalyRoutes);
 app.use('/api/assistant', assistantRoutes);
+app.use('/api/automations', automationRoutes);
+
+app.use((error, _req, res, _next) => {
+  console.error('Lỗi API chưa xử lý:', error);
+  if (res.headersSent) return;
+  res.status(500).json({ message: 'Lỗi máy chủ.' });
+});
 // Import và cấu hình MQTT Service
 const mqttService = require('./services/mqttService');
-mqttService.setIO(io);
-
-// Khởi chạy Data Aggregation
 const { startDataAggregation } = require('./utils/dataAggregator');
-startDataAggregation(mqttService, io);
+const { startAutomationEngine } = require('./services/automationEngine');
+const { ensureDefaultScenes } = require('./services/sceneService');
 
 // Bắt đầu server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server đang chạy trên cổng ${PORT}`);
+async function start() {
+  await connectDB();
+  await ensureDefaultScenes();
+  mqttService.setIO(io);
+  startDataAggregation(mqttService, io);
+  startAutomationEngine(mqttService, io);
+  server.listen(PORT, () => console.log(`Server đang chạy trên cổng ${PORT}`));
+}
+
+start().catch((error) => {
+  console.error('Không thể khởi động backend:', error);
+  process.exit(1);
 });
