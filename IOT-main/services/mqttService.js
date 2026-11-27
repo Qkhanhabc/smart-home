@@ -85,7 +85,13 @@ class MQTTService extends EventEmitter {
     }
     if (topic === topics.deviceState) {
       const data = JSON.parse(text);
-      await this.updateDeviceStatus({ fan: data.fan, led1: data.led1, led2: data.led2, led3: data.led3 });
+      const reported = {};
+      for (const key of ['fan', 'led1', 'led2', 'led3']) {
+        const state = toOnOff(data[key]);
+        if (state) reported[key] = state;
+      }
+      this.emit('deviceStateReport', { ...reported, receivedAt: new Date() });
+      await this.updateDeviceStatus(reported);
       return;
     }
     if (topic === topics.acState) {
@@ -142,7 +148,11 @@ class MQTTService extends EventEmitter {
 
     const statusUpdates = {};
     if (data.fan_relay !== undefined) statusUpdates.fan = data.fan_relay;
-    if (Object.keys(statusUpdates).length) await this.updateDeviceStatus(statusUpdates);
+    if (Object.keys(statusUpdates).length) {
+      const reportedFan = toOnOff(data.fan_relay);
+      if (reportedFan) this.emit('deviceStateReport', { fan: reportedFan, receivedAt: new Date() });
+      await this.updateDeviceStatus(statusUpdates);
+    }
   }
 
   async sendSmokeAlarmEmail(sensor) {

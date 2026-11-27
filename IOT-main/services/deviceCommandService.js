@@ -77,26 +77,12 @@ async function controlDevice({ device, room, power }, options = {}) {
   safetyCheck(resolved.id, target, source);
 
   const targetText = target ? 'ON' : 'OFF';
-  const current = mqttService.getCurrentDeviceStatus()[resolved.stateKey];
-  if (current === targetText) {
-    return {
-      ok: true,
-      device: resolved.id,
-      label: resolved.label,
-      requestedState: targetText,
-      status: 'already_in_state',
-      confirmation: 'reported_by_esp32',
-      esp32Reported: true,
-      physicallyVerified: false
-    };
-  }
-
   const signature = `${resolved.id}:${targetText}`;
   if (pendingBySignature.has(signature)) return pendingBySignature.get(signature);
 
   const commandId = crypto.randomUUID();
   const operation = (async () => {
-    const wait = waitForState('deviceStatusUpdate', (state) => state[resolved.stateKey] === targetText, options.timeoutMs || 5000);
+    const wait = waitForState('deviceStateReport', (state) => state[resolved.stateKey] === targetText, options.timeoutMs || 5000);
     mqttService.markDesiredState(resolved.id, targetText, { source, commandId, verification: 'reported_by_esp32' });
     await publish(topics.deviceCommand, { device: resolved.id, power: target ? 1 : 0, command_id: commandId });
     const acknowledged = await wait;

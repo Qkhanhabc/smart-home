@@ -2,9 +2,25 @@ const PendingAiAction = require('../models/PendingAiAction');
 const { createProvider } = require('./providerFactory');
 const { asProviderTools, getTool } = require('./toolDefinitions');
 const { executeTool, confirmationSummary, validatePendingToolArguments } = require('./toolRegistry');
-const { getDevices } = require('../config/deviceRegistry');
+const { getDevices, normalizeText } = require('../config/deviceRegistry');
 
 const MAX_TOOL_ROUNDS = 6;
+
+function parseDirectDeviceCommand(text) {
+  const normalized = normalizeText(text);
+  const match = normalized.match(/^(?:(?:lam on|vui long|giup toi|ban hay|hay)\s+)*(bat|mo|tat|dong)\s+(.+)$/);
+  if (!match) return null;
+
+  let target = match[2].replace(/\s+(?:giup toi|giup|nhe|di|ngay|len|xuong)$/, '').trim();
+  target = target.replace(/^den so ([1-3])$/, 'den $1');
+  const devices = getDevices().filter((device) => {
+    const names = [device.id, device.label, ...(device.aliases || [])].map(normalizeText);
+    const roomNames = names.map((name) => `${normalizeText(device.room)} ${name}`.trim());
+    return names.includes(target) || roomNames.includes(target);
+  });
+  if (devices.length !== 1) return null;
+  return { device: devices[0].id, power: match[1] === 'bat' || match[1] === 'mo' };
+}
 
 function systemPrompt() {
   const devices = getDevices().map(({ id, label, room, type, physicalVerification }) => ({ id, label, room, type, physicalVerification }));
@@ -47,8 +63,24 @@ async function createPendingAction(userId, name, args) {
 }
 
 async function chat(history, userId, dependencies = {}) {
-  const provider = dependencies.provider || createProvider();
   const runTool = dependencies.executeTool || executeTool;
+  const directCommand = parseDirectDeviceCommand(history.at(-1)?.content || '');
+  if (directCommand) {
+    let result;
+    try {
+      result = await runTool('control_device', directCommand, { userId });
+    } catch (error) {
+      result = { ok: false, error: error.message, code: error.code };
+    }
+    return {
+      answer: result.message || result.error || 'Đã gửi yêu cầu điều khiển.',
+      model: process.env.OLLAMA_MODEL || 'qwen2.5:3b',
+      toolResults: [{ name: 'control_device', result }],
+      pendingActions: []
+    };
+  }
+
+  const provider = dependencies.provider || createProvider();
   const makePendingAction = dependencies.createPendingAction || createPendingAction;
   const messages = [{ role: 'system', content: systemPrompt() }, ...history.map(({ role, content }) => ({ role, content }))];
   const toolResults = [];
